@@ -1,0 +1,18 @@
+# Git files
+.git
+.gitignore
+
+# Build artifacts
+tg-antispam
+
+# Environment files
+.env
+
+# Editor directories and files
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# Documentation
+README.md 

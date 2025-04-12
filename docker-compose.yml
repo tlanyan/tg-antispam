@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  tg-antispam:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tg-antispam
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ADMIN_ID=${TELEGRAM_ADMIN_ID}
+    volumes:
+      - ./logs:/app/logs 
