@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   tg-antispam:
@@ -10,5 +10,15 @@ services:
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_ADMIN_ID=${TELEGRAM_ADMIN_ID}
+      # Webhook配置
+      - WEBHOOK_HOST=${WEBHOOK_HOST}
+      - WEBHOOK_PATH=${WEBHOOK_PATH:-/webhook}
+      - WEBHOOK_PORT=${WEBHOOK_PORT:-8443}
+      - CERT_FILE=${CERT_FILE:-}
+      - KEY_FILE=${KEY_FILE:-}
+    ports:
+      - "${WEBHOOK_PORT:-8443}:${WEBHOOK_PORT:-8443}"
     volumes:
-      - ./logs:/app/logs 
+      - ./logs:/app/logs
+      # 如果使用证书文件，取消注释以下行
+      # - ./certs:/certs

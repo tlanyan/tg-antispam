@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -26,6 +28,32 @@ func main() {
 		log.Fatal("TELEGRAM_BOT_TOKEN environment variable not set")
 	}
 
+	// Get webhook configuration from environment variables
+	webhookHost := os.Getenv("WEBHOOK_HOST")
+	if webhookHost == "" {
+		log.Fatal("WEBHOOK_HOST environment variable not set (e.g. https://example.com)")
+	}
+
+	webhookPath := os.Getenv("WEBHOOK_PATH")
+	if webhookPath == "" {
+		webhookPath = "/webhook" // Default webhook path
+		log.Printf("Using default webhook path: %s", webhookPath)
+	}
+
+	webhookPort := os.Getenv("WEBHOOK_PORT")
+	if webhookPort == "" {
+		webhookPort = "8443" // Default port for Telegram webhooks
+		log.Printf("Using default webhook port: %s", webhookPort)
+	}
+
+	webhookListen := "0.0.0.0:" + webhookPort
+	certFile := os.Getenv("CERT_FILE")
+	keyFile := os.Getenv("KEY_FILE")
+
+	if (certFile == "" || keyFile == "") && !strings.HasPrefix(webhookHost, "https://") {
+		log.Fatal("HTTPS configuration required: Set CERT_FILE and KEY_FILE env vars or use a HTTPS proxy")
+	}
+
 	// Initialize bot
 	bot, err := telego.NewBot(botToken, telego.WithDefaultDebugLogger())
 	if err != nil {
@@ -39,8 +67,33 @@ func main() {
 	}
 	log.Printf("Authorized on account %s", botUser.Username)
 
-	// Set up updates handler
-	updates, err := bot.UpdatesViaLongPolling(ctx, nil)
+	// Delete any existing webhook
+	err = bot.DeleteWebhook(ctx, &telego.DeleteWebhookParams{})
+	if err != nil {
+		log.Fatalf("Failed to delete existing webhook: %v", err)
+	}
+
+	// Set up webhook
+	webhookURL := webhookHost + webhookPath
+	log.Printf("Setting webhook to: %s", webhookURL)
+
+	setWebhookParams := &telego.SetWebhookParams{
+		URL: webhookURL,
+		AllowedUpdates: []string{"message", "edited_message", "channel_post", "edited_channel_post"},
+	}
+
+	err = bot.SetWebhook(ctx, setWebhookParams)
+	if err != nil {
+		log.Fatalf("Failed to set webhook: %v", err)
+	}
+
+	// Create HTTP server mux
+	mux := http.NewServeMux()
+
+	// Set up updates handler via webhook
+	updates, err := bot.UpdatesViaWebhook(ctx,
+		telego.WebhookHTTPServeMux(mux, webhookPath, bot.SecretToken()),
+	)
 	if err != nil {
 		log.Fatalf("Failed to get updates channel: %v", err)
 	}
@@ -54,6 +107,16 @@ func main() {
 
 	// Handle new chat members
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
+		if message.From != nil && message.From.IsPremium {
+			bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
+				ChatID:    telego.ChatID{ID: message.Chat.ID},
+				MessageID: message.MessageID,
+			})
+			restrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+			sendWarning(ctx.Context(), bot, message.Chat.ID, *message.From)
+			return nil
+		}
+
 		if message.NewChatMembers != nil {
 			for _, newMember := range message.NewChatMembers {
 				// Skip bots
@@ -74,8 +137,14 @@ func main() {
 	// Start handling updates
 	bh.Start()
 
-	// Keep running until interrupted
-	select {}
+	// Start HTTP server
+	log.Printf("Starting HTTP server on %s", webhookListen)
+	if certFile != "" && keyFile != "" {
+		log.Fatal(http.ListenAndServeTLS(webhookListen, certFile, keyFile, mux))
+	} else {
+		log.Printf("WARNING: Running without TLS. Make sure you have a HTTPS proxy in front of this server")
+		log.Fatal(http.ListenAndServe(webhookListen, mux))
+	}
 }
 
 // shouldRestrictUser checks if a user should be restricted based on their name and username
@@ -86,11 +155,11 @@ func shouldRestrictUser(user telego.User) bool {
 	}
 
 	// Check for random username
-	if isRandomUsername(user.Username) {
-		return true
-	}
+	// if isRandomUsername(user.Username) {
+	// 	return true
+	// }
 
-	return false
+	return user.IsPremium
 }
 
 // hasEmoji checks if a string contains emoji characters
@@ -174,6 +243,8 @@ func sendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		reason = "名称中包含emoji"
 	} else if isRandomUsername(user.Username) {
 		reason = "用户名是无意义的随机字符串"
+	} else if user.IsPremium {
+		reason = "用户是Premium用户"
 	} else {
 		reason = "符合垃圾用户特征"
 	}
