@@ -10,6 +10,8 @@ RUN go mod tidy
 # Download dependencies
 RUN go mod download
 
+RUN go get github.com/mymmrac/telego && go get github.com/mymmrac/telego/telegohandler
+
 # Copy source code
 COPY *.go ./
 
@@ -28,4 +30,4 @@ WORKDIR /app
 COPY --from=builder /app/tg-antispam /app/
 
 # Run the application
-CMD ["/app/tg-antispam"] 
+CMD ["/app/tg-antispam"]

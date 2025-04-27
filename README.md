@@ -1,6 +1,6 @@
 # tg-antispam
 
-Telegram 防止垃圾用户的 bot
+Telegram 防止垃圾用户（主要是 Premium 用户）的 bot
 
 ## 功能特点
 
@@ -35,7 +35,7 @@ cd tg-antispam
 
    - 将 `YOUR_BOT_TOKEN_HERE` 替换为实际的 Bot Token
    - 将 `YOUR_ADMIN_ID_HERE` 替换为管理员的 Telegram 用户 ID
-   - 对于 Webhook 模式，还需要设置 `WEBHOOK_HOST`、`WEBHOOK_PATH` 和 `WEBHOOK_PORT`
+   - 对于 Webhook 模式，还需要设置 `WEBHOOK_POINT` 和 `LISTEN_PORT`
 
 3. 运行机器人
 
@@ -60,9 +60,9 @@ echo "TELEGRAM_BOT_TOKEN=your_bot_token_here" > .env
 echo "TELEGRAM_ADMIN_ID=your_admin_id_here" >> .env
 
 # Webhook配置（如需使用Webhook）
-echo "WEBHOOK_HOST=https://your-domain.com" >> .env
-echo "WEBHOOK_PATH=/webhook" >> .env
-echo "WEBHOOK_PORT=8443" >> .env
+echo "WEBHOOK_HOST=https://your-domain.com/webhook" >> .env
+# 注意，这里是程序监听的端口。如果程序位于Nginx/proxy后面，这个端口和WEBHOOK_POINT的端口可以不一致
+echo "LISTEN_PORT=8443" >> .env
 
 # 如果使用自签证书，添加证书路径
 # echo "CERT_FILE=/certs/cert.pem" >> .env
@@ -98,8 +98,7 @@ Webhook 模式允许机器人几乎实时接收消息更新，能更好地捕获
 3. **环境变量配置**：
 
    - `WEBHOOK_HOST`: 您的域名，例如 "https://example.com"
-   - `WEBHOOK_PATH`: Webhook 的路径，默认为 "/webhook"
-   - `WEBHOOK_PORT`: 端口号，默认为 "8443"
+   - `LISTEN_PORT`: 端口号，默认为 "8443"
    - `CERT_FILE`: SSL 证书文件路径（如需自签证书）
    - `KEY_FILE`: SSL 密钥文件路径（如需自签证书）
 
