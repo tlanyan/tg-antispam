@@ -12,6 +12,7 @@ export LISTEN_PORT="8443"                        # 注意，这里是程序监�
 # export CERT_FILE="/path/to/cert.pem"
 # export KEY_FILE="/path/to/key.pem"
 
+rm -rf tg-antispam
 # Build and run the bot
 go build -o tg-antispam
 ./tg-antispam
