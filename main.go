@@ -178,17 +178,15 @@ func main() {
 	}
 	defer bh.Stop()
 
-	// 添加一个通用处理程序来记录所有收到的更新
-	bh.Handle(func(ctx *th.Context, update telego.Update) error {
-		log.Printf("Received update: %+v", update)
-		return ctx.Next(update) // 继续传递给下一个处理程序
-	})
-
 	// 配置消息处理程序，但尚未启动
 	// Handle new chat members
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 		log.Printf("Processing message: %+v", message)
 		if message.From != nil && message.From.IsPremium {
+			if message.From.IsBot {
+				log.Printf("Skipping bot: %s", message.From.FirstName)
+				return nil
+			}
 			log.Printf("Found premium user: %s", message.From.FirstName)
 			bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
 				ChatID:    telego.ChatID{ID: message.Chat.ID},
@@ -199,25 +197,37 @@ func main() {
 			return nil
 		}
 
-		if message.NewChatMembers != nil {
-			log.Printf("New chat members detected: %d members", len(message.NewChatMembers))
-			for _, newMember := range message.NewChatMembers {
-				// Skip bots
+		return nil
+	})
+
+	// Handle chat member updates
+	bh.Handle(func(ctx *th.Context, update telego.Update) error {
+		// 处理 ChatMember 更新（当用户加入聊天或更改状态时）
+		if update.ChatMember != nil {
+			log.Printf("Chat member update: %+v", update.ChatMember)
+
+			// 判断是否为新成员加入（状态变更为'member'）
+			if update.ChatMember.NewChatMember.MemberStatus() == "member" {
+
+				newMember := update.ChatMember.NewChatMember.MemberUser()
+				log.Printf("New user detected via chat_member update: %s", newMember.FirstName)
+
+				// 跳过机器人
 				if newMember.IsBot {
 					log.Printf("Skipping bot: %s", newMember.FirstName)
-					continue
+					return nil
 				}
 
-				// Check if user should be restricted
+				// 检查用户是否应该被限制
 				if shouldRestrictUser(newMember) {
 					log.Printf("Restricting user: %s", newMember.FirstName)
-					restrictUser(ctx.Context(), bot, message.Chat.ID, newMember.ID)
-					sendWarning(ctx.Context(), bot, message.Chat.ID, newMember)
+					restrictUser(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember.ID)
+					sendWarning(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember)
 				}
 			}
 		}
 		return nil
-	})
+	}, th.AnyChatMember())
 
 	// 先启动 HTTP 服务器
 	go func() {
