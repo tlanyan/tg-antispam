@@ -28,12 +28,25 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				return nil
 			}
 			log.Printf("Found premium user: %s", message.From.FirstName)
-			bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
-				ChatID:    telego.ChatID{ID: message.Chat.ID},
-				MessageID: message.MessageID,
-			})
-			RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-			SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From)
+
+			// Check if user has permission to send messages first
+			hasPermission, err := UserCanSendMessages(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+			if err != nil {
+				log.Printf("Error checking user permissions: %v", err)
+				return nil
+			}
+
+			// Only restrict if they have permission (not already restricted)
+			if hasPermission {
+				bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
+					ChatID:    telego.ChatID{ID: message.Chat.ID},
+					MessageID: message.MessageID,
+				})
+				RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+				SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From)
+			} else {
+				log.Printf("User %s is already restricted, skipping", message.From.FirstName)
+			}
 			return nil
 		}
 
@@ -45,16 +58,25 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 		// Process ChatMember updates (when users join chat or change status)
 		if update.ChatMember != nil {
 			log.Printf("Chat member update: %+v", update.ChatMember)
+			log.Printf("new Chat member: %+v", update.ChatMember.NewChatMember)
 
-			// Check if new member joined (status changed to 'member')
-			if update.ChatMember.NewChatMember.MemberStatus() == "member" {
-
+			if update.ChatMember.NewChatMember.MemberIsMember() {
 				newMember := update.ChatMember.NewChatMember.MemberUser()
-				log.Printf("New user detected via chat_member update: %s", newMember.FirstName)
-
 				// Skip bots
 				if newMember.IsBot {
 					log.Printf("Skipping bot: %s", newMember.FirstName)
+					return nil
+				}
+
+				// Check if user has permission to send messages first
+				hasPermission, err := UserCanSendMessages(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember.ID)
+				if err != nil {
+					log.Printf("Error checking user permissions: %v", err)
+					return nil
+				}
+
+				if !hasPermission {
+					log.Printf("User %s is already restricted, skipping", newMember.FirstName)
 					return nil
 				}
 
@@ -222,5 +244,34 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		log.Printf("Error sending message to admin: %v", err)
 	} else {
 		log.Printf("Successfully sent restriction notice to admin for user %s", userName)
+	}
+}
+
+// UserCanSendMessages checks if a user has permission to send messages in a chat
+func UserCanSendMessages(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) (bool, error) {
+	// Get member info
+	memberInfo, err := bot.GetChatMember(ctx, &telego.GetChatMemberParams{
+		ChatID: telego.ChatID{ID: chatID},
+		UserID: userID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("error getting member info: %w", err)
+	}
+
+	// Check if user has permission to send messages based on member status
+	switch memberInfo.MemberStatus() {
+	case telego.MemberStatusRestricted:
+		// For restricted users, we need to check if they can send messages
+		restrictedMember, ok := memberInfo.(*telego.ChatMemberRestricted)
+		if !ok {
+			return false, fmt.Errorf("unexpected member type")
+		}
+		return restrictedMember.CanSendMessages, nil
+	case telego.MemberStatusMember, telego.MemberStatusAdministrator, telego.MemberStatusCreator:
+		// Regular members, admins and creators can send messages by default
+		return true, nil
+	default:
+		// Left or kicked users cannot send messages
+		return false, nil
 	}
 }
