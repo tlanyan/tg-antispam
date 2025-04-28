@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -14,7 +15,8 @@ import (
 
 var (
 	// Compiled regular expressions
-	emojiRegex = regexp.MustCompile(`[\x{1F600}-\x{1F64F}|\x{1F300}-\x{1F5FF}|\x{1F680}-\x{1F6FF}|\x{1F700}-\x{1F77F}|\x{1F780}-\x{1F7FF}|\x{1F800}-\x{1F8FF}|\x{1F900}-\x{1F9FF}|\x{1FA00}-\x{1FA6F}|\x{1FA70}-\x{1FAFF}|\x{2600}-\x{26FF}|\x{2700}-\x{27BF}]`)
+	emojiRegex  = regexp.MustCompile(`[\x{1F600}-\x{1F64F}|\x{1F300}-\x{1F5FF}|\x{1F680}-\x{1F6FF}|\x{1F700}-\x{1F77F}|\x{1F780}-\x{1F7FF}|\x{1F800}-\x{1F8FF}|\x{1F900}-\x{1F9FF}|\x{1FA00}-\x{1FA6F}|\x{1FA70}-\x{1FAFF}|\x{2600}-\x{26FF}|\x{2700}-\x{27BF}]`)
+	tgLinkRegex = regexp.MustCompile(`t\.me`)
 )
 
 // SetupMessageHandlers configures all bot message and update handlers
@@ -81,7 +83,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				}
 
 				// Check if user should be restricted
-				if ShouldRestrictUser(newMember) {
+				if ShouldRestrictUser(ctx, bot, newMember) {
 					log.Printf("Restricting user: %s", newMember.FirstName)
 					RestrictUser(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember.ID)
 					SendWarning(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember)
@@ -93,7 +95,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 }
 
 // ShouldRestrictUser checks if a user should be restricted based on their name and username
-func ShouldRestrictUser(user telego.User) bool {
+func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) bool {
 	// Check for emoji in name
 	if HasEmoji(user.FirstName) || HasEmoji(user.LastName) {
 		return true
@@ -104,7 +106,32 @@ func ShouldRestrictUser(user telego.User) bool {
 	// 	return true
 	// }
 
+	// Check for t.me links in bio
+	if HasTelegramLinksInBio(ctx, bot, user.ID) {
+		return true
+	}
+
 	return user.IsPremium
+}
+
+// HasTelegramLinksInBio checks if a user's bio contains t.me links
+func HasTelegramLinksInBio(ctx context.Context, bot *telego.Bot, userID int64) bool {
+	// Get full user info to access bio
+	userChat, err := bot.GetChat(ctx, &telego.GetChatParams{
+		ChatID: telego.ChatID{ID: userID}, // User's private chat
+	})
+
+	if err != nil {
+		log.Printf("Error getting user info for ID %d: %v", userID, err)
+		return false
+	}
+
+	// Check if we can access the user's bio
+	if userChat.Bio != "" {
+		return tgLinkRegex.MatchString(userChat.Bio) || strings.Contains(strings.ToLower(userChat.Bio), "t.me")
+	}
+
+	return false
 }
 
 // HasEmoji checks if a string contains emoji characters
@@ -188,6 +215,8 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		reason = "名称中包含emoji"
 	} else if IsRandomUsername(user.Username) {
 		reason = "用户名是无意义的随机字符串"
+	} else if HasTelegramLinksInBio(ctx, bot, user.ID) {
+		reason = "用户简介包含t.me链接"
 	} else if user.IsPremium {
 		reason = "用户是Premium用户"
 	} else {
@@ -212,7 +241,7 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		// For private groups, convert the chat ID to work with t.me links
 		// Telegram requires removing the -100 prefix from supergroup IDs for links
 		groupIDForLink := chatID
-		if groupIDForLink < 0 && groupIDForLink < -1000000000000 {
+		if groupIDForLink < -1000000000000 {
 			// Extract the actual ID from the negative number (skip the -100 prefix)
 			groupIDForLink = -groupIDForLink - 1000000000000
 		}
