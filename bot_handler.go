@@ -21,9 +21,22 @@ var (
 
 // SetupMessageHandlers configures all bot message and update handlers
 func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
+	// Skip messages from the bot itself
+	botInfo, err := bot.GetMe(context.Background())
+	if err != nil {
+		log.Printf("Error getting bot info: %v", err)
+	}
+
 	// Handle new chat members
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 		log.Printf("Processing message: %+v", message)
+
+		// Skip messages from the bot itself
+		if message.From != nil && botInfo != nil && message.From.ID == botInfo.ID {
+			log.Printf("Skipping message from the bot itself")
+			return nil
+		}
+
 		if message.From != nil && message.From.IsPremium {
 			if message.From.IsBot {
 				log.Printf("Skipping bot: %s", message.From.FirstName)
@@ -61,6 +74,12 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 		if update.ChatMember != nil {
 			log.Printf("Chat member update: %+v", update.ChatMember)
 			log.Printf("new Chat member: %+v", update.ChatMember.NewChatMember)
+
+			// Skip updates related to the bot itself
+			if botInfo != nil && update.ChatMember.From.ID == botInfo.ID {
+				log.Printf("Skipping chat member update from the bot itself")
+				return nil
+			}
 
 			if update.ChatMember.NewChatMember.MemberIsMember() {
 				newMember := update.ChatMember.NewChatMember.MemberUser()
