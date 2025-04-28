@@ -114,8 +114,11 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 
 	// Handle callback queries for unban button
 	bh.HandleCallbackQuery(func(ctx *th.Context, query telego.CallbackQuery) error {
+		log.Printf("Full callback query object: %+v", query)
+
 		// Check if it's an unban request
 		if strings.HasPrefix(query.Data, "unban:") {
+			log.Printf("Processing unban request with data: %s", query.Data)
 			// Extract chat ID and user ID from callback data
 			parts := strings.Split(query.Data, ":")
 			if len(parts) != 3 {
@@ -161,18 +164,17 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 
 			// Check if we have a message to edit
 			if query.Message != nil {
-				// Check if message is accessible
-				if message, ok := query.Message.(*telego.Message); ok {
-					bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
-						ChatID:      telego.ChatID{ID: message.Chat.ID},
-						MessageID:   message.MessageID,
-						Text:        messageText,
-						ParseMode:   "HTML",
-						ReplyMarkup: nil, // Remove the button
-					})
-				} else {
-					log.Printf("Cannot edit message: message is inaccessible")
-				}
+				// Access message fields correctly for MaybeInaccessibleMessage type
+				chatID := query.Message.GetChat().ID
+				messageID := query.Message.GetMessageID()
+
+				bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+					ChatID:      telego.ChatID{ID: chatID},
+					MessageID:   messageID,
+					Text:        messageText,
+					ParseMode:   "HTML",
+					ReplyMarkup: nil, // Remove the button
+				})
 			}
 
 			// Answer the callback query

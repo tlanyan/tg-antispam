@@ -16,8 +16,8 @@ func SetupWebhook(ctx context.Context, bot *telego.Bot, webhookPoint, webhookPat
 	// Set up webhook
 	log.Printf("Setting webhook to: %s", webhookPoint)
 	setWebhookParams := &telego.SetWebhookParams{
-		URL: webhookPoint,
-		AllowedUpdates: []string{"message", "channel_post", "chat_member", "my_chat_member"},
+		URL:            webhookPoint,
+		AllowedUpdates: []string{"message", "channel_post", "chat_member", "my_chat_member", "callback_query"},
 		SecretToken:    secretToken,
 	}
 
