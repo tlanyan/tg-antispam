@@ -10,7 +10,8 @@ RUN go mod tidy
 # Download dependencies
 RUN go mod download
 
-RUN go get github.com/mymmrac/telego && go get github.com/mymmrac/telego/telegohandler
+RUN go get github.com/mymmrac/telego && go get github.com/mymmrac/telego/telegohandler && \
+    go get gopkg.in/natefinch/lumberjack.v2
 
 # Copy source code
 COPY *.go ./
