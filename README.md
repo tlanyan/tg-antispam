@@ -16,13 +16,13 @@ Telegram 防止垃圾用户（主要是 Premium 用户）的 bot
 
 ### 前置条件
 
-- Go 1.21 或更高版本（直接安装方式）
+- Go 1.24.1 或更高版本（直接构建运行方式）
 - Docker 和 Docker Compose（Docker 部署方式）
 - 一个 Telegram Bot Token（通过 [@BotFather](https://t.me/BotFather) 获取）
 - 管理员的 Telegram 用户 ID（用于接收通知）
 - 对于 Webhook 模式：需要一个带 SSL 证书的域名或者公网 IP
 
-### 方式一：直接安装运行
+### 方式一：直接构建运行
 
 1. 克隆仓库
 
@@ -59,8 +59,8 @@ cd tg-antispam
 echo "TELEGRAM_BOT_TOKEN=your_bot_token_here" > .env
 echo "TELEGRAM_ADMIN_ID=your_admin_id_here" >> .env
 
-# Webhook配置（如需使用Webhook）
-echo "WEBHOOK_HOST=https://your-domain.com/webhook" >> .env
+# Webhook配置
+echo "WEBHOOK_POINT=https://your-domain.com/webhook" >> .env
 # 注意，这里是程序监听的端口。如果程序位于Nginx/proxy后面，这个端口和WEBHOOK_POINT的端口可以不一致
 echo "LISTEN_PORT=8443" >> .env
 
@@ -97,14 +97,14 @@ Webhook 模式允许机器人几乎实时接收消息更新，能更好地捕获
 
 3. **环境变量配置**：
 
-   - `WEBHOOK_HOST`: 您的域名，例如 "https://example.com"
-   - `LISTEN_PORT`: 端口号，默认为 "8443"
+   - `WEBHOOK_POINT`: webhook 接入点，例如 "https://example.com/webhook"
+   - `LISTEN_PORT`: 程序监听端口号，默认为 "8443"
    - `CERT_FILE`: SSL 证书文件路径（如需自签证书）
    - `KEY_FILE`: SSL 密钥文件路径（如需自签证书）
 
 4. **使用反向代理**：
    - 如果您已有服务器运行 Nginx 或 Apache，可以使用反向代理转发请求到机器人
-   - 此时无需设置 CERT_FILE 和 KEY_FILE，但 WEBHOOK_HOST 必须使用 https://
+   - 此时无需设置 CERT_FILE 和 KEY_FILE，但 WEBHOOK_POINT 必须使用 https://
 
 ### 获取管理员 Telegram ID
 
@@ -123,7 +123,7 @@ Webhook 模式允许机器人几乎实时接收消息更新，能更好地捕获
 ## 工作原理
 
 1. 机器人监测新加入群组的成员
-2. 当新成员加入时，机器人会检查其名称是否包含 emoji 以及用户名是否为无意义随机字符串
+2. 当新成员加入时，机器人会检查其名称是否包含 emoji 以及是否为 premium 用户
 3. 如果符合上述条件之一，机器人会限制该用户的发言及媒体发送权限
 4. 同时向管理员发送一条私人通知，说明限制原因和相关群组信息
 

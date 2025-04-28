@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -15,6 +16,23 @@ import (
 )
 
 func main() {
+	// Set up logging first
+	logDir := os.Getenv("LOG_DIR")
+	if logDir == "" {
+		// Default to logs directory in current path
+		executable, err := os.Executable()
+		if err != nil {
+			log.Printf("Warning: Could not determine executable path: %v", err)
+			logDir = "logs"
+		} else {
+			logDir = filepath.Join(filepath.Dir(executable), "logs")
+		}
+	}
+
+	if err := SetupLogger(logDir); err != nil {
+		log.Fatalf("Failed to set up logger: %v", err)
+	}
+
 	// Create context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
