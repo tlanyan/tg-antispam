@@ -111,6 +111,79 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 		}
 		return nil
 	}, th.AnyChatMember())
+
+	// Handle callback queries for unban button
+	bh.HandleCallbackQuery(func(ctx *th.Context, query telego.CallbackQuery) error {
+		// Check if it's an unban request
+		if strings.HasPrefix(query.Data, "unban:") {
+			// Extract chat ID and user ID from callback data
+			parts := strings.Split(query.Data, ":")
+			if len(parts) != 3 {
+				return nil
+			}
+
+			chatID, err := strconv.ParseInt(parts[1], 10, 64)
+			if err != nil {
+				log.Printf("Error parsing chat ID: %v", err)
+				return nil
+			}
+
+			userID, err := strconv.ParseInt(parts[2], 10, 64)
+			if err != nil {
+				log.Printf("Error parsing user ID: %v", err)
+				return nil
+			}
+
+			// Unban the user
+			UnrestrictUser(ctx.Context(), bot, chatID, userID)
+
+			// Get user information
+			userInfo, err := bot.GetChat(ctx.Context(), &telego.GetChatParams{
+				ChatID: telego.ChatID{ID: userID},
+			})
+			if err != nil {
+				log.Printf("Error getting user info: %v", err)
+				return nil
+			}
+
+			userName := userInfo.FirstName
+			if userInfo.LastName != "" {
+				userName += " " + userInfo.LastName
+			}
+
+			// Create user link
+			userLink := fmt.Sprintf("tg://user?id=%d", userID)
+			linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, userName)
+
+			// Update the message
+			messageText := fmt.Sprintf("✅ <b>用户已解封</b>\n"+
+				"用户 %s 已被解除限制，现在可以正常发言。", linkedUserName)
+
+			// Check if we have a message to edit
+			if query.Message != nil {
+				// Check if message is accessible
+				if message, ok := query.Message.(*telego.Message); ok {
+					bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+						ChatID:      telego.ChatID{ID: message.Chat.ID},
+						MessageID:   message.MessageID,
+						Text:        messageText,
+						ParseMode:   "HTML",
+						ReplyMarkup: nil, // Remove the button
+					})
+				} else {
+					log.Printf("Cannot edit message: message is inaccessible")
+				}
+			}
+
+			// Answer the callback query
+			bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+				CallbackQueryID: query.ID,
+				Text:            "✅ 用户已成功解封",
+			})
+		}
+
+		return nil
+	})
 }
 
 // ShouldRestrictUser checks if a user should be restricted based on their name and username
@@ -296,11 +369,26 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		"<b>原因</b>: %s",
 		linkedGroupName, linkedUserName, reason)
 
-	// Send HTML message to admin
+	// Create unban button with callback data containing chat ID and user ID
+	unbanCallbackData := fmt.Sprintf("unban:%d:%d", chatID, user.ID)
+	keyboard := [][]telego.InlineKeyboardButton{
+		{
+			{
+				Text:         "解除限制",
+				CallbackData: unbanCallbackData,
+			},
+		},
+	}
+	inlineKeyboard := telego.InlineKeyboardMarkup{
+		InlineKeyboard: keyboard,
+	}
+
+	// Send HTML message to admin with the unban button
 	adminMessageParams := telego.SendMessageParams{
-		ChatID:    telego.ChatID{ID: adminID},
-		Text:      message,
-		ParseMode: "HTML", // Enable HTML formatting
+		ChatID:      telego.ChatID{ID: adminID},
+		Text:        message,
+		ParseMode:   "HTML", // Enable HTML formatting
+		ReplyMarkup: &inlineKeyboard,
 	}
 
 	_, err = bot.SendMessage(ctx, &adminMessageParams)
@@ -308,6 +396,45 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		log.Printf("Error sending message to admin: %v", err)
 	} else {
 		log.Printf("Successfully sent restriction notice to admin for user %s", userName)
+	}
+}
+
+// UnrestrictUser removes restrictions from a user in a chat
+func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) {
+	// Create chat permissions that allow sending messages and media
+	canSendMessages := true
+	canSendMedia := true
+	canSendPolls := true
+	canSendOther := true
+	canAddWebPreview := true
+
+	permissions := telego.ChatPermissions{
+		CanSendMessages:       &canSendMessages,
+		CanSendAudios:         &canSendMedia,
+		CanSendDocuments:      &canSendMedia,
+		CanSendPhotos:         &canSendMedia,
+		CanSendVideos:         &canSendMedia,
+		CanSendVideoNotes:     &canSendMedia,
+		CanSendVoiceNotes:     &canSendMedia,
+		CanSendPolls:          &canSendPolls,
+		CanSendOtherMessages:  &canSendOther,
+		CanAddWebPagePreviews: &canAddWebPreview,
+	}
+
+	// Create unrestriction config
+	params := telego.RestrictChatMemberParams{
+		ChatID:      telego.ChatID{ID: chatID},
+		UserID:      userID,
+		Permissions: permissions,
+		UntilDate:   0, // 0 means permanent
+	}
+
+	// Apply unrestriction
+	err := bot.RestrictChatMember(ctx, &params)
+	if err != nil {
+		log.Printf("Error unrestricting user %d: %v", userID, err)
+	} else {
+		log.Printf("Successfully unrestricted user %d in chat %d", userID, chatID)
 	}
 }
 
