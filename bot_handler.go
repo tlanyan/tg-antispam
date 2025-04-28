@@ -31,41 +31,43 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 		log.Printf("Processing message: %+v", message)
 
-		// Skip messages from the bot itself
-		if message.From != nil && botInfo != nil && message.From.ID == botInfo.ID {
-			log.Printf("Skipping message from the bot itself")
-			return nil
-		}
-
-		if message.From != nil && message.From.IsPremium {
-			if message.From.IsBot {
-				log.Printf("Skipping bot: %s", message.From.FirstName)
-				return nil
-			}
-			log.Printf("Found premium user: %s", message.From.FirstName)
-
-			// Check if user has permission to send messages first
-			hasPermission, err := UserCanSendMessages(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-			if err != nil {
-				log.Printf("Error checking user permissions: %v", err)
-				return nil
-			}
-
-			// Only restrict if they have permission (not already restricted)
-			if hasPermission {
-				bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
-					ChatID:    telego.ChatID{ID: message.Chat.ID},
-					MessageID: message.MessageID,
-				})
-				RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-				SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From)
-			} else {
-				log.Printf("User %s is already restricted, skipping", message.From.FirstName)
-			}
-			return nil
-		}
-
+		// only restrict user when they join the group
 		return nil
+		// Skip messages from the bot itself
+		// if message.From != nil && botInfo != nil && message.From.ID == botInfo.ID {
+		// 	log.Printf("Skipping message from the bot itself")
+		// 	return nil
+		// }
+
+		// if message.From != nil && message.From.IsPremium {
+		// 	if message.From.IsBot {
+		// 		log.Printf("Skipping bot: %s", message.From.FirstName)
+		// 		return nil
+		// 	}
+		// 	log.Printf("Found premium user: %s", message.From.FirstName)
+
+		// 	// Check if user has permission to send messages first
+		// 	hasPermission, err := UserCanSendMessages(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+		// 	if err != nil {
+		// 		log.Printf("Error checking user permissions: %v", err)
+		// 		return nil
+		// 	}
+
+		// 	// Only restrict if they have permission (not already restricted)
+		// 	if hasPermission {
+		// 		bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
+		// 			ChatID:    telego.ChatID{ID: message.Chat.ID},
+		// 			MessageID: message.MessageID,
+		// 		})
+		// 		RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+		// 		SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From)
+		// 	} else {
+		// 		log.Printf("User %s is already restricted, skipping", message.From.FirstName)
+		// 	}
+		// 	return nil
+		// }
+
+		// return nil
 	})
 
 	// Handle chat member updates
