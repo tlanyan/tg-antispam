@@ -120,17 +120,21 @@ func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) 
 		return true
 	}
 
+	if user.IsPremium {
+		return true
+	}
+
 	// Check for random username
-	// if IsRandomUsername(user.Username) {
-	// 	return true
-	// }
+	if IsRandomUsername(user.Username) {
+		return true
+	}
 
 	// Check for t.me links in bio
 	if HasTelegramLinksInBio(ctx, bot, user.ID) {
 		return true
 	}
 
-	return user.IsPremium
+	return false
 }
 
 // HasTelegramLinksInBio checks if a user's bio contains t.me links
@@ -165,6 +169,18 @@ func HasEmoji(s string) bool {
 func IsRandomUsername(username string) bool {
 	if username == "" {
 		return false
+	}
+
+	// Check for 5 consecutive consonants
+	consonantsRegex := regexp.MustCompile(`[bcdfghjklmnpqrstvwxyz]{5}`)
+	if consonantsRegex.MatchString(strings.ToLower(username)) {
+		return true
+	}
+
+	// Check for 7 consecutive digits
+	digitsRegex := regexp.MustCompile(`\d{7}`)
+	if digitsRegex.MatchString(username) {
+		return true
 	}
 
 	return false
@@ -232,12 +248,12 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 	var reason string
 	if HasEmoji(user.FirstName) || HasEmoji(user.LastName) {
 		reason = "名称中包含emoji"
+	} else if user.IsPremium {
+		reason = "用户是Premium用户"
 	} else if IsRandomUsername(user.Username) {
 		reason = "用户名是无意义的随机字符串"
 	} else if HasTelegramLinksInBio(ctx, bot, user.ID) {
 		reason = "用户简介包含t.me链接"
-	} else if user.IsPremium {
-		reason = "用户是Premium用户"
 	} else {
 		reason = "符合垃圾用户特征"
 	}
