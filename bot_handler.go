@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -17,6 +19,10 @@ var (
 	// Compiled regular expressions
 	emojiRegex  = regexp.MustCompile(`[\x{1F600}-\x{1F64F}|\x{1F300}-\x{1F5FF}|\x{1F680}-\x{1F6FF}|\x{1F700}-\x{1F77F}|\x{1F780}-\x{1F7FF}|\x{1F800}-\x{1F8FF}|\x{1F900}-\x{1F9FF}|\x{1FA00}-\x{1FA6F}|\x{1FA70}-\x{1FAFF}|\x{2600}-\x{26FF}|\x{2700}-\x{27BF}]`)
 	tgLinkRegex = regexp.MustCompile(`t\.me`)
+	// Global banned users list instance
+	BannedUsers = NewUserActionManager(10)
+
+	CasRecords = NewUserActionManager(1)
 )
 
 // SetupMessageHandlers configures all bot message and update handlers
@@ -31,18 +37,24 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 		log.Printf("Processing message: %+v", message)
 
-		// Skip if no sender information
-		if message.From == nil {
+		// Skip if no sender information or sender is a bot
+		if message.From == nil || message.From.IsBot {
 			return nil
 		}
 
-		// Skip messages from the bot itself
-		if botInfo != nil && message.From.ID == botInfo.ID {
-			log.Printf("Skipping message from the bot itself")
-			return nil
+		shouldRestrict, _ := ShouldRestrictUser(ctx, bot, *message.From)
+		if shouldRestrict {
+			shouldRestrict, reason := CasRequest(message.From.ID)
+			if shouldRestrict {
+				bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
+					ChatID:    telego.ChatID{ID: message.Chat.ID},
+					MessageID: message.MessageID,
+				})
+				RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+				SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From, reason)
+			}
 		}
 
-		// only restrict user when they join the group
 		return nil
 	})
 
@@ -87,6 +99,9 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 
 				// Check if user should be restricted
 				shouldRestrict, reason := ShouldRestrictUser(ctx, bot, newMember)
+				if !shouldRestrict {
+					shouldRestrict, reason = CasRequest(newMember.ID)
+				}
 				if shouldRestrict {
 					log.Printf("Restricting user: %s, reason: %s", newMember.FirstName, reason)
 					RestrictUser(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember.ID)
@@ -197,6 +212,59 @@ func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) 
 	// Check for t.me links in bio
 	if HasTelegramLinksInBio(ctx, bot, user.ID) {
 		return true, "用户简介包含t.me链接"
+	}
+
+	// Check CAS system for potential spam users
+	isCasUser, casReason := CasRequest(user.ID)
+	if isCasUser {
+		return true, casReason
+	}
+
+	return false, ""
+}
+
+func CasRequest(userID int64) (bool, string) {
+	if CasRecords.Contains(userID) {
+		return false, ""
+	}
+
+	// Build the URL with the user ID
+	url := fmt.Sprintf("https://api.cas.chat/check?user_id=%d", userID)
+
+	// Make the HTTP request
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Printf("Error making CAS request: %v", err)
+		return false, ""
+	}
+	defer resp.Body.Close()
+
+	// Check if the response status code is OK (200)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("CAS API returned non-OK status: %d", resp.StatusCode)
+		return false, ""
+	}
+
+	// Read and parse the JSON response
+	var casResponse struct {
+		Ok     bool `json:"ok"`
+		Result struct {
+			Offenses  int   `json:"offenses"`
+			TimeAdded int64 `json:"time_added"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&casResponse); err != nil {
+		log.Printf("Error decoding CAS response: %v", err)
+		return false, ""
+	}
+
+	CasRecords.Add(userID)
+
+	// Check if the user is flagged in CAS
+	if casResponse.Ok && casResponse.Result.Offenses > 0 {
+		reason := fmt.Sprintf("CAS系统标记: %d次违规", casResponse.Result.Offenses)
+		return true, reason
 	}
 
 	return false, ""
