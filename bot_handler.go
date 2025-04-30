@@ -249,8 +249,7 @@ func CasRequest(userID int64) (bool, string) {
 	var casResponse struct {
 		Ok     bool `json:"ok"`
 		Result struct {
-			Offenses  int   `json:"offenses"`
-			TimeAdded int64 `json:"time_added"`
+			Offenses int `json:"offenses"`
 		} `json:"result"`
 	}
 
