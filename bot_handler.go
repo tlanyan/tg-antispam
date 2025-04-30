@@ -31,43 +31,19 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 		log.Printf("Processing message: %+v", message)
 
+		// Skip if no sender information
+		if message.From == nil {
+			return nil
+		}
+
+		// Skip messages from the bot itself
+		if botInfo != nil && message.From.ID == botInfo.ID {
+			log.Printf("Skipping message from the bot itself")
+			return nil
+		}
+
 		// only restrict user when they join the group
 		return nil
-		// Skip messages from the bot itself
-		// if message.From != nil && botInfo != nil && message.From.ID == botInfo.ID {
-		// 	log.Printf("Skipping message from the bot itself")
-		// 	return nil
-		// }
-
-		// if message.From != nil && message.From.IsPremium {
-		// 	if message.From.IsBot {
-		// 		log.Printf("Skipping bot: %s", message.From.FirstName)
-		// 		return nil
-		// 	}
-		// 	log.Printf("Found premium user: %s", message.From.FirstName)
-
-		// 	// Check if user has permission to send messages first
-		// 	hasPermission, err := UserCanSendMessages(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-		// 	if err != nil {
-		// 		log.Printf("Error checking user permissions: %v", err)
-		// 		return nil
-		// 	}
-
-		// 	// Only restrict if they have permission (not already restricted)
-		// 	if hasPermission {
-		// 		bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
-		// 			ChatID:    telego.ChatID{ID: message.Chat.ID},
-		// 			MessageID: message.MessageID,
-		// 		})
-		// 		RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-		// 		SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From)
-		// 	} else {
-		// 		log.Printf("User %s is already restricted, skipping", message.From.FirstName)
-		// 	}
-		// 	return nil
-		// }
-
-		// return nil
 	})
 
 	// Handle chat member updates
@@ -91,6 +67,12 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 					return nil
 				}
 
+				// Check if user is already in the banned list
+				if BannedUsers.Contains(newMember.ID) {
+					log.Printf("User %s is in banned list, skipping", newMember.FirstName)
+					return nil
+				}
+
 				// Check if user has permission to send messages first
 				hasPermission, err := UserCanSendMessages(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember.ID)
 				if err != nil {
@@ -104,11 +86,15 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				}
 
 				// Check if user should be restricted
-				if ShouldRestrictUser(ctx, bot, newMember) {
-					log.Printf("Restricting user: %s", newMember.FirstName)
+				shouldRestrict, reason := ShouldRestrictUser(ctx, bot, newMember)
+				if shouldRestrict {
+					log.Printf("Restricting user: %s, reason: %s", newMember.FirstName, reason)
 					RestrictUser(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember.ID)
-					SendWarning(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember)
+					SendWarning(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember, reason)
 				}
+			} else {
+				log.Printf("User %s left the group, removing from banned list", update.ChatMember.NewChatMember.MemberUser().FirstName)
+				BannedUsers.Remove(update.ChatMember.NewChatMember.MemberUser().ID)
 			}
 		}
 		return nil
@@ -179,6 +165,8 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				})
 			}
 
+			BannedUsers.Remove(userID)
+
 			// Answer the callback query
 			bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
 				CallbackQueryID: query.ID,
@@ -191,27 +179,27 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 }
 
 // ShouldRestrictUser checks if a user should be restricted based on their name and username
-func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) bool {
+func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) (bool, string) {
 	// Check for emoji in name
 	if HasEmoji(user.FirstName) || HasEmoji(user.LastName) {
-		return true
+		return true, "名称中包含emoji"
 	}
 
 	if user.IsPremium {
-		return true
+		return true, "用户是Premium用户"
 	}
 
 	// Check for random username
 	if IsRandomUsername(user.Username) {
-		return true
+		return true, "用户名是无意义的随机字符串"
 	}
 
 	// Check for t.me links in bio
 	if HasTelegramLinksInBio(ctx, bot, user.ID) {
-		return true
+		return true, "用户简介包含t.me链接"
 	}
 
-	return false
+	return false, ""
 }
 
 // HasTelegramLinksInBio checks if a user's bio contains t.me links
@@ -299,11 +287,13 @@ func RestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int
 		log.Printf("Error restricting user %d: %v", userID, err)
 	} else {
 		log.Printf("Successfully restricted user %d in chat %d", userID, chatID)
+		// Add user to banned list with 2-hour expiration
+		BannedUsers.Add(userID)
 	}
 }
 
 // SendWarning sends a warning message about the restricted user to the specified admin
-func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego.User) {
+func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego.User, reason string) {
 	// Get admin ID from environment variable
 	adminIDStr := os.Getenv("TELEGRAM_ADMIN_ID")
 	if adminIDStr == "" {
@@ -320,19 +310,6 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 	userName := user.FirstName
 	if user.LastName != "" {
 		userName += " " + user.LastName
-	}
-
-	var reason string
-	if HasEmoji(user.FirstName) || HasEmoji(user.LastName) {
-		reason = "名称中包含emoji"
-	} else if user.IsPremium {
-		reason = "用户是Premium用户"
-	} else if IsRandomUsername(user.Username) {
-		reason = "用户名是无意义的随机字符串"
-	} else if HasTelegramLinksInBio(ctx, bot, user.ID) {
-		reason = "用户简介包含t.me链接"
-	} else {
-		reason = "符合垃圾用户特征"
 	}
 
 	// Get group information
@@ -439,6 +416,8 @@ func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID i
 		log.Printf("Error unrestricting user %d: %v", userID, err)
 	} else {
 		log.Printf("Successfully unrestricted user %d in chat %d", userID, chatID)
+		// Remove user from banned list
+		BannedUsers.Remove(userID)
 	}
 }
 
