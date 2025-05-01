@@ -19,8 +19,6 @@ var (
 	// Compiled regular expressions
 	emojiRegex  = regexp.MustCompile(`[\x{1F600}-\x{1F64F}|\x{1F300}-\x{1F5FF}|\x{1F680}-\x{1F6FF}|\x{1F700}-\x{1F77F}|\x{1F780}-\x{1F7FF}|\x{1F800}-\x{1F8FF}|\x{1F900}-\x{1F9FF}|\x{1FA00}-\x{1FA6F}|\x{1FA70}-\x{1FAFF}|\x{2600}-\x{26FF}|\x{2700}-\x{27BF}]`)
 	tgLinkRegex = regexp.MustCompile(`t\.me`)
-	// Global banned users list instance
-	BannedUsers = NewUserActionManager(10)
 
 	CasRecords = NewUserActionManager(1)
 )
@@ -62,8 +60,9 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	bh.Handle(func(ctx *th.Context, update telego.Update) error {
 		// Process ChatMember updates (when users join chat or change status)
 		if update.ChatMember != nil {
+			newChatMember := update.ChatMember.NewChatMember
 			log.Printf("Chat member update: %+v", update.ChatMember)
-			log.Printf("new Chat member: %+v", update.ChatMember.NewChatMember)
+			log.Printf("new Chat member: %+v", newChatMember)
 
 			// Skip updates related to the bot itself
 			if botInfo != nil && update.ChatMember.From.ID == botInfo.ID {
@@ -71,45 +70,55 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				return nil
 			}
 
-			if update.ChatMember.NewChatMember.MemberIsMember() {
-				newMember := update.ChatMember.NewChatMember.MemberUser()
+			chatId := update.ChatMember.Chat.ID
+			user := newChatMember.MemberUser()
+			if newChatMember.MemberIsMember() {
 				// Skip bots
-				if newMember.IsBot {
-					log.Printf("Skipping bot: %s", newMember.FirstName)
+				if user.IsBot {
+					log.Printf("Skipping bot: %s", user.FirstName)
 					return nil
 				}
 
-				// Check if user is already in the banned list
-				if BannedUsers.Contains(newMember.ID) {
-					log.Printf("User %s is in banned list, skipping", newMember.FirstName)
+				// 首次入群，等待入群机器人处理
+				if !update.ChatMember.From.IsBot {
+					log.Printf("Skipping first time join: %s", user.FirstName)
 					return nil
+				}
+
+				// 检查是否是受限制的成员
+				if newChatMember.MemberStatus() == telego.MemberStatusRestricted {
+					restrictedMember, ok := newChatMember.(*telego.ChatMemberRestricted)
+					if ok {
+						// 现在可以访问 CanSendMessages 属性
+						canSendMsg := restrictedMember.CanSendMessages
+						if canSendMsg {
+							return nil
+						}
+					}
 				}
 
 				// Check if user has permission to send messages first
-				hasPermission, err := UserCanSendMessages(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember.ID)
+				hasPermission, err := UserCanSendMessages(ctx.Context(), bot, update.ChatMember.Chat.ID, user.ID)
 				if err != nil {
 					log.Printf("Error checking user permissions: %v", err)
 					return nil
 				}
 
 				if !hasPermission {
-					log.Printf("User %s is already restricted, skipping", newMember.FirstName)
+					log.Printf("User %s is already restricted, skipping", user.FirstName)
 					return nil
 				}
 
 				// Check if user should be restricted
-				shouldRestrict, reason := ShouldRestrictUser(ctx, bot, newMember)
+				shouldRestrict, reason := ShouldRestrictUser(ctx, bot, user)
 				if !shouldRestrict {
-					shouldRestrict, reason = CasRequest(newMember.ID)
+					shouldRestrict, reason = CasRequest(user.ID)
 				}
 				if shouldRestrict {
-					log.Printf("Restricting user: %s, reason: %s", newMember.FirstName, reason)
-					RestrictUser(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember.ID)
-					SendWarning(ctx.Context(), bot, update.ChatMember.Chat.ID, newMember, reason)
+					log.Printf("Restricting user: %s, reason: %s", user.FirstName, reason)
+					RestrictUser(ctx.Context(), bot, chatId, user.ID)
+					SendWarning(ctx.Context(), bot, chatId, user, reason)
 				}
-			} else {
-				log.Printf("User %s left the group, removing from banned list", update.ChatMember.NewChatMember.MemberUser().FirstName)
-				BannedUsers.Remove(update.ChatMember.NewChatMember.MemberUser().ID)
 			}
 		}
 		return nil
@@ -179,8 +188,6 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 					ReplyMarkup: nil, // Remove the button
 				})
 			}
-
-			BannedUsers.Remove(userID)
 
 			// Answer the callback query
 			bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
@@ -258,6 +265,7 @@ func CasRequest(userID int64) (bool, string) {
 		return false, ""
 	}
 
+	log.Printf("CAS response: %+v", casResponse)
 	CasRecords.Add(userID)
 
 	// Check if the user is flagged in CAS
@@ -354,8 +362,6 @@ func RestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int
 		log.Printf("Error restricting user %d: %v", userID, err)
 	} else {
 		log.Printf("Successfully restricted user %d in chat %d", userID, chatID)
-		// Add user to banned list with 2-hour expiration
-		BannedUsers.Add(userID)
 	}
 }
 
@@ -483,8 +489,6 @@ func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID i
 		log.Printf("Error unrestricting user %d: %v", userID, err)
 	} else {
 		log.Printf("Successfully unrestricted user %d in chat %d", userID, chatID)
-		// Remove user from banned list
-		BannedUsers.Remove(userID)
 	}
 }
 
