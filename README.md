@@ -1,6 +1,8 @@
 # tg-antispam
 
-Telegram 防止垃圾用户（主要是 Premium 用户）的 bot
+Telegram 防止垃圾用户（主要是 Premium 用户）的 bot。
+
+[English version](./README_en.md)
 
 ## 功能特点
 
@@ -141,7 +143,7 @@ Webhook 模式允许机器人实时接收消息更新，能更好地捕获被其
 2. 将机器人设置为管理员，并授予以下权限：
 
    - 删除消息
-   - 限制用户权限
+   - 封禁用户
 
 3. 如果希望收到机器人的消息提醒，需要先与机器人互动一次
 
