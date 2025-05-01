@@ -13,16 +13,16 @@ type UserActionInfo struct {
 
 // UserActionManager manages the list of banned users with expirations
 type UserActionManager struct {
-	users           map[int64]time.Time
-	expirationHours int
-	mu              sync.RWMutex
+	users      map[int64]time.Time
+	expireMins int
+	mu         sync.RWMutex
 }
 
 // NewUserActionManager creates a new banned users list
-func NewUserActionManager(expirationHours int) *UserActionManager {
+func NewUserActionManager(expireMins int) *UserActionManager {
 	list := &UserActionManager{
-		users:           make(map[int64]time.Time),
-		expirationHours: expirationHours,
+		users:      make(map[int64]time.Time),
+		expireMins: expireMins,
 	}
 
 	// Start a goroutine to clean up expired entries
@@ -37,7 +37,7 @@ func (b *UserActionManager) Add(userID int64) {
 	defer b.mu.Unlock()
 
 	// Set expiration based on configured hours
-	b.users[userID] = time.Now().Add(time.Duration(b.expirationHours) * time.Hour)
+	b.users[userID] = time.Now().Add(time.Duration(b.expireMins) * time.Minute)
 }
 
 // Remove removes a user from the banned list
