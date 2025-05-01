@@ -1,4 +1,4 @@
-package main
+package bot
 
 import (
 	"context"
@@ -11,8 +11,34 @@ import (
 	th "github.com/mymmrac/telego/telegohandler"
 )
 
+// WebhookServer represents a webhook HTTP server
+type WebhookServer struct {
+	server   *http.Server
+	certFile string
+	keyFile  string
+}
+
+// Start starts the webhook server
+func (ws *WebhookServer) Start() error {
+	log.Printf("Starting HTTP server on %s", ws.server.Addr)
+
+	// Determine if we should use TLS
+	if ws.certFile != "" && ws.keyFile != "" {
+		log.Printf("Using TLS with cert: %s, key: %s", ws.certFile, ws.keyFile)
+		return ws.server.ListenAndServeTLS(ws.certFile, ws.keyFile)
+	}
+
+	log.Printf("WARNING: Running without TLS. Make sure you have a HTTPS proxy in front of this server")
+	return ws.server.ListenAndServe()
+}
+
+// Shutdown gracefully shuts down the server
+func (ws *WebhookServer) Shutdown(ctx context.Context) error {
+	return ws.server.Shutdown(ctx)
+}
+
 // SetupWebhook configures and starts the webhook server
-func SetupWebhook(ctx context.Context, bot *telego.Bot, webhookPoint, webhookPath, webhookListen, secretToken string, certFile, keyFile string) (*th.BotHandler, *http.Server, error) {
+func SetupWebhook(ctx context.Context, bot *telego.Bot, webhookPoint, webhookPath, webhookListen, secretToken string, certFile, keyFile string) (*th.BotHandler, *WebhookServer, error) {
 	// Set up webhook
 	log.Printf("Setting webhook to: %s", webhookPoint)
 	setWebhookParams := &telego.SetWebhookParams{
@@ -98,8 +124,9 @@ func SetupWebhook(ctx context.Context, bot *telego.Bot, webhookPoint, webhookPat
 		return nil, nil, fmt.Errorf("failed to create bot handler: %w", err)
 	}
 
-	// Configure message handlers using the function from bot_handler.go
-	SetupMessageHandlers(bh, bot)
-
-	return bh, server, nil
+	return bh, &WebhookServer{
+		server:   server,
+		certFile: certFile,
+		keyFile:  keyFile,
+	}, nil
 }

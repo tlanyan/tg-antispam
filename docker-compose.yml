@@ -15,9 +15,10 @@ services:
       - LISTEN_PORT=${LISTEN_PORT:-8443}
       - CERT_FILE=${CERT_FILE:-}
       - KEY_FILE=${KEY_FILE:-}
+      - LOG_DIR=/app/logs
     ports:
       - "${LISTEN_PORT:-8443}:${LISTEN_PORT:-8443}"
     volumes:
       - ./logs:/app/logs
       # 如果使用证书文件，取消注释以下行
-      # - ./certs:/certs
+      # - ./certs:/app/certs

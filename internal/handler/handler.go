@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -10,9 +10,12 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
+
+	"tg-antispam/internal/models"
 )
 
 var (
@@ -20,7 +23,7 @@ var (
 	emojiRegex  = regexp.MustCompile(`[\x{1F600}-\x{1F64F}|\x{1F300}-\x{1F5FF}|\x{1F680}-\x{1F6FF}|\x{1F700}-\x{1F77F}|\x{1F780}-\x{1F7FF}|\x{1F800}-\x{1F8FF}|\x{1F900}-\x{1F9FF}|\x{1FA00}-\x{1FA6F}|\x{1FA70}-\x{1FAFF}|\x{2600}-\x{26FF}|\x{2700}-\x{27BF}]`)
 	tgLinkRegex = regexp.MustCompile(`t\.me`)
 
-	CasRecords = NewUserActionManager(30)
+	CasRecords = models.NewUserActionManager(30)
 )
 
 // SetupMessageHandlers configures all bot message and update handlers
@@ -29,6 +32,15 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	botInfo, err := bot.GetMe(context.Background())
 	if err != nil {
 		log.Printf("Error getting bot info: %v", err)
+	}
+
+	adminID := int64(-1)
+	adminIDStr := os.Getenv("TELEGRAM_ADMIN_ID")
+	if adminIDStr != "" {
+		adminID, err = strconv.ParseInt(adminIDStr, 10, 64)
+		if err != nil {
+			adminID = -1
+		}
 	}
 
 	// Handle new chat members
@@ -49,7 +61,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 					MessageID: message.MessageID,
 				})
 				RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-				SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From, reason)
+				SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From, reason, adminID)
 			}
 		}
 
@@ -117,7 +129,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				if shouldRestrict {
 					log.Printf("Restricting user: %s, reason: %s", user.FirstName, reason)
 					RestrictUser(ctx.Context(), bot, chatId, user.ID)
-					SendWarning(ctx.Context(), bot, chatId, user, reason)
+					SendWarning(ctx.Context(), bot, chatId, user, reason, adminID)
 				}
 			}
 		}
@@ -200,124 +212,112 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	})
 }
 
-// ShouldRestrictUser checks if a user should be restricted based on their name and username
+// ShouldRestrictUser determines if a user should be restricted
 func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) (bool, string) {
-	// Check for emoji in name
-	if HasEmoji(user.FirstName) || HasEmoji(user.LastName) {
-		return true, "名称中包含emoji"
-	}
-
-	if user.IsPremium {
-		return true, "用户是Premium用户"
-	}
-
-	// Check for random username
+	// Check for random username pattern
 	if IsRandomUsername(user.Username) {
-		return true, "用户名是无意义的随机字符串"
+		return true, "疑似随机用户名"
 	}
 
-	// Check for t.me links in bio
+	// Check for emoji in name
+	if HasEmoji(user.FirstName) || (user.LastName != "" && HasEmoji(user.LastName)) {
+		return true, "用户名含有表情符号"
+	}
+
+	// Check bio for Telegram links
 	if HasTelegramLinksInBio(ctx, bot, user.ID) {
-		return true, "用户简介包含t.me链接"
-	}
-
-	// Check CAS system for potential spam users
-	isCasUser, casReason := CasRequest(user.ID)
-	if isCasUser {
-		return true, casReason
+		return true, "个人简介包含 Telegram 链接"
 	}
 
 	return false, ""
 }
 
+// CasRequest checks if a user is in the CAS (Combot Anti-Spam) database
 func CasRequest(userID int64) (bool, string) {
+	// Check cache first
 	if CasRecords.Contains(userID) {
-		return false, ""
+		return true, ""
 	}
 
-	// Build the URL with the user ID
-	url := fmt.Sprintf("https://api.cas.chat/check?user_id=%d", userID)
+	// Construct CAS API URL
+	apiURL := fmt.Sprintf("https://api.cas.chat/check?user_id=%d", userID)
 
-	// Make the HTTP request
-	resp, err := http.Get(url)
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	// Send GET request to CAS API
+	resp, err := client.Get(apiURL)
 	if err != nil {
-		log.Printf("Error making CAS request: %v", err)
+		log.Printf("Error querying CAS: %v", err)
 		return false, ""
 	}
 	defer resp.Body.Close()
 
-	// Check if the response status code is OK (200)
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("CAS API returned non-OK status: %d", resp.StatusCode)
-		return false, ""
-	}
-
-	// Read and parse the JSON response
-	var casResponse struct {
-		Ok     bool `json:"ok"`
+	// Parse response
+	var result struct {
+		OK     bool `json:"ok"`
 		Result struct {
-			Offenses int `json:"offenses"`
+			Offenses int64 `json:"offenses"`
 		} `json:"result"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&casResponse); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		log.Printf("Error decoding CAS response: %v", err)
 		return false, ""
 	}
 
-	log.Printf("CAS response: %+v", casResponse)
-	CasRecords.Add(userID)
-
-	// Check if the user is flagged in CAS
-	if casResponse.Ok && casResponse.Result.Offenses > 0 {
-		reason := fmt.Sprintf("CAS系统标记: %d次违规", casResponse.Result.Offenses)
-		return true, reason
+	log.Printf("CAS response: %+v", resp.Body)
+	// Check if user is in CAS
+	if result.OK && result.Result.Offenses > 0 {
+		log.Printf("User %d is in CAS with %d offenses", userID, result.Result.Offenses)
+		// Add to cache
+		CasRecords.Add(userID)
+		return true, fmt.Sprintf("CAS记录 (违规次数: %d)", result.Result.Offenses)
 	}
 
 	return false, ""
 }
 
-// HasTelegramLinksInBio checks if a user's bio contains t.me links
+// HasTelegramLinksInBio checks if user's bio contains t.me links
 func HasTelegramLinksInBio(ctx context.Context, bot *telego.Bot, userID int64) bool {
-	// Get full user info to access bio
-	userChat, err := bot.GetChat(ctx, &telego.GetChatParams{
-		ChatID: telego.ChatID{ID: userID}, // User's private chat
+	user, err := bot.GetChat(ctx, &telego.GetChatParams{
+		ChatID: telego.ChatID{ID: userID},
 	})
 
 	if err != nil {
-		log.Printf("Error getting user info for ID %d: %v", userID, err)
+		log.Printf("Error getting user info: %v", err)
 		return false
 	}
 
-	// Check if we can access the user's bio
-	if userChat.Bio != "" {
-		return tgLinkRegex.MatchString(userChat.Bio) || strings.Contains(strings.ToLower(userChat.Bio), "t.me")
+	if user.Bio != "" {
+		return tgLinkRegex.MatchString(user.Bio)
 	}
 
 	return false
 }
 
-// HasEmoji checks if a string contains emoji characters
+// HasEmoji checks if string contains emoji
 func HasEmoji(s string) bool {
-	if s == "" {
-		return false
-	}
 	return emojiRegex.MatchString(s)
 }
 
-// IsRandomUsername checks if a username appears to be a random string
+// IsRandomUsername checks if username matches common spam patterns
 func IsRandomUsername(username string) bool {
 	if username == "" {
 		return false
 	}
 
-	// Check for 5 consecutive consonants
+	if username == "" {
+		return false
+	}
+
 	consonantsRegex := regexp.MustCompile(`[bcdfghjklmnpqrstvwxyz]{5}`)
 	if consonantsRegex.MatchString(strings.ToLower(username)) {
 		return true
 	}
 
-	// Check for 7 consecutive digits
 	digitsRegex := regexp.MustCompile(`\d{7}`)
 	if digitsRegex.MatchString(username) {
 		return true
@@ -326,66 +326,66 @@ func IsRandomUsername(username string) bool {
 	return false
 }
 
-// RestrictUser restricts a user's permissions in a chat
+// RestrictUser restricts a user from sending messages
 func RestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) {
-	// Create chat permissions that restrict sending messages and media
-	canSendMessages := false
-	canSendMedia := false
-	canSendPolls := false
-	canSendOther := false
-	canAddWebPreview := false
+	untilDate := int64(0) // forever
 
-	permissions := telego.ChatPermissions{
-		CanSendMessages:       &canSendMessages,
-		CanSendAudios:         &canSendMedia,
-		CanSendDocuments:      &canSendMedia,
-		CanSendPhotos:         &canSendMedia,
-		CanSendVideos:         &canSendMedia,
-		CanSendVideoNotes:     &canSendMedia,
-		CanSendVoiceNotes:     &canSendMedia,
-		CanSendPolls:          &canSendPolls,
-		CanSendOtherMessages:  &canSendOther,
-		CanAddWebPagePreviews: &canAddWebPreview,
+	// Create boolean variables for permissions
+	falseValue := false
+
+	restrictParams := &telego.RestrictChatMemberParams{
+		ChatID: telego.ChatID{ID: chatID},
+		UserID: userID,
+		Permissions: telego.ChatPermissions{
+			CanSendMessages:       &falseValue,
+			CanSendAudios:         &falseValue,
+			CanSendDocuments:      &falseValue,
+			CanSendPhotos:         &falseValue,
+			CanSendVideos:         &falseValue,
+			CanSendVideoNotes:     &falseValue,
+			CanSendVoiceNotes:     &falseValue,
+			CanSendPolls:          &falseValue,
+			CanSendOtherMessages:  &falseValue,
+			CanAddWebPagePreviews: &falseValue,
+			CanChangeInfo:         &falseValue,
+			CanInviteUsers:        &falseValue,
+			CanPinMessages:        &falseValue,
+			CanManageTopics:       &falseValue,
+		},
+		UntilDate: untilDate,
 	}
 
-	// Create restriction config
-	params := telego.RestrictChatMemberParams{
-		ChatID:      telego.ChatID{ID: chatID},
-		UserID:      userID,
-		Permissions: permissions,
-		UntilDate:   0, // 0 means restrict indefinitely
-	}
-
-	// Apply restriction
-	err := bot.RestrictChatMember(ctx, &params)
+	err := bot.RestrictChatMember(ctx, restrictParams)
 	if err != nil {
-		log.Printf("Error restricting user %d: %v", userID, err)
+		log.Printf("Error restricting user: %v", err)
 	} else {
 		log.Printf("Successfully restricted user %d in chat %d", userID, chatID)
 	}
 }
 
-// SendWarning sends a warning message about the restricted user to the specified admin
-func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego.User, reason string) {
-	// Get admin ID from environment variable
-	adminIDStr := os.Getenv("TELEGRAM_ADMIN_ID")
-	if adminIDStr == "" {
-		log.Println("TELEGRAM_ADMIN_ID environment variable not set, not sending notification")
+// SendWarning sends a warning message about the restricted user
+func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego.User, reason string, adminID int64) {
+	if adminID < 0 {
+		log.Printf("Admin ID is not set, not sending warning")
 		return
 	}
 
-	adminID, err := strconv.ParseInt(adminIDStr, 10, 64)
-	if err != nil {
-		log.Printf("Invalid TELEGRAM_ADMIN_ID format: %v", err)
-		return
-	}
-
+	// Get user display name
 	userName := user.FirstName
 	if user.LastName != "" {
 		userName += " " + user.LastName
 	}
 
-	// Get group information
+	// Add username if available
+	displayName := userName
+	if user.Username != "" {
+		displayName = fmt.Sprintf("%s (@%s)", userName, user.Username)
+	}
+
+	// Create user link
+	userLink := fmt.Sprintf("tg://user?id=%d", user.ID)
+	linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, displayName)
+
 	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
@@ -394,8 +394,6 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		return
 	}
 
-	// Create chat and user links
-	// For public groups, use the username if available
 	var groupLink string
 	if chatInfo.Username != "" {
 		groupLink = fmt.Sprintf("https://t.me/%s", chatInfo.Username)
@@ -410,12 +408,8 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		groupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
 	}
 
-	// Create user link - always works even if user has no username
-	userLink := fmt.Sprintf("tg://user?id=%d", user.ID)
-
 	// Format group name and user name with links using HTML
 	linkedGroupName := fmt.Sprintf("<a href=\"%s\">%s</a>", groupLink, chatInfo.Title)
-	linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, userName)
 
 	// Create HTML formatted message for admin
 	message := fmt.Sprintf("⚠️ <b>安全提醒</b> [%s]\n"+
@@ -453,70 +447,69 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 	}
 }
 
-// UnrestrictUser removes restrictions from a user in a chat
+// UnrestrictUser removes restrictions from a user
 func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) {
-	// Create chat permissions that allow sending messages and media
-	canSendMessages := true
-	canSendMedia := true
-	canSendPolls := true
-	canSendOther := true
-	canAddWebPreview := true
+	// Set permissions to allow sending messages
+	trueValue := true
+	falseValue := false
 
-	permissions := telego.ChatPermissions{
-		CanSendMessages:       &canSendMessages,
-		CanSendAudios:         &canSendMedia,
-		CanSendDocuments:      &canSendMedia,
-		CanSendPhotos:         &canSendMedia,
-		CanSendVideos:         &canSendMedia,
-		CanSendVideoNotes:     &canSendMedia,
-		CanSendVoiceNotes:     &canSendMedia,
-		CanSendPolls:          &canSendPolls,
-		CanSendOtherMessages:  &canSendOther,
-		CanAddWebPagePreviews: &canAddWebPreview,
+	restrictParams := &telego.RestrictChatMemberParams{
+		ChatID: telego.ChatID{ID: chatID},
+		UserID: userID,
+		Permissions: telego.ChatPermissions{
+			CanSendMessages:       &trueValue,
+			CanSendAudios:         &trueValue,
+			CanSendDocuments:      &trueValue,
+			CanSendPhotos:         &trueValue,
+			CanSendVideos:         &trueValue,
+			CanSendVideoNotes:     &trueValue,
+			CanSendVoiceNotes:     &trueValue,
+			CanSendPolls:          &trueValue,
+			CanSendOtherMessages:  &trueValue,
+			CanAddWebPagePreviews: &trueValue,
+			CanChangeInfo:         &falseValue,
+			CanInviteUsers:        &trueValue,
+			CanPinMessages:        &falseValue,
+			CanManageTopics:       &falseValue,
+		},
 	}
 
-	// Create unrestriction config
-	params := telego.RestrictChatMemberParams{
-		ChatID:      telego.ChatID{ID: chatID},
-		UserID:      userID,
-		Permissions: permissions,
-		UntilDate:   0, // 0 means permanent
-	}
-
-	// Apply unrestriction
-	err := bot.RestrictChatMember(ctx, &params)
+	err := bot.RestrictChatMember(ctx, restrictParams)
 	if err != nil {
-		log.Printf("Error unrestricting user %d: %v", userID, err)
+		log.Printf("Error unrestricting user: %v", err)
 	} else {
 		log.Printf("Successfully unrestricted user %d in chat %d", userID, chatID)
 	}
+
+	// Remove from CAS cache if exists
+	if CasRecords.Contains(userID) {
+		CasRecords.Remove(userID)
+		log.Printf("Removed user %d from CAS cache", userID)
+	}
 }
 
-// UserCanSendMessages checks if a user has permission to send messages in a chat
+// UserCanSendMessages checks if user has permission to send messages
 func UserCanSendMessages(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) (bool, error) {
-	// Get member info
-	memberInfo, err := bot.GetChatMember(ctx, &telego.GetChatMemberParams{
+	// Get chat member info to check their current permissions
+	chatMemberParams := &telego.GetChatMemberParams{
 		ChatID: telego.ChatID{ID: chatID},
 		UserID: userID,
-	})
-	if err != nil {
-		return false, fmt.Errorf("error getting member info: %w", err)
 	}
 
-	// Check if user has permission to send messages based on member status
-	switch memberInfo.MemberStatus() {
-	case telego.MemberStatusRestricted:
-		// For restricted users, we need to check if they can send messages
-		restrictedMember, ok := memberInfo.(*telego.ChatMemberRestricted)
-		if !ok {
-			return false, fmt.Errorf("unexpected member type")
-		}
-		return restrictedMember.CanSendMessages, nil
-	case telego.MemberStatusMember, telego.MemberStatusAdministrator, telego.MemberStatusCreator:
-		// Regular members, admins and creators can send messages by default
-		return true, nil
-	default:
-		// Left or kicked users cannot send messages
-		return false, nil
+	member, err := bot.GetChatMember(ctx, chatMemberParams)
+	if err != nil {
+		return false, fmt.Errorf("error getting chat member: %w", err)
 	}
+
+	// Check if it's a restricted member
+	if member.MemberStatus() == telego.MemberStatusRestricted {
+		restrictedMember, ok := member.(*telego.ChatMemberRestricted)
+		if ok {
+			return restrictedMember.CanSendMessages, nil
+		}
+		return false, fmt.Errorf("failed to convert member to restricted type")
+	}
+
+	// If not restricted, they can send messages
+	return true, nil
 }

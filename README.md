@@ -13,6 +13,30 @@ Telegram 防止垃圾用户（主要是 Premium 用户）的 bot
 - 对可疑用户自动限制发送消息和媒体的权限
 - 向管理员发送封禁通知，对于错误封禁的用户可直接接触封禁
 
+## 项目结构
+
+项目采用标准的 Go 项目结构:
+
+```
+.
+├── cmd/                  # 应用程序入口
+│   └── tg-antispam/      # 主程序入口
+├── configs/              # 配置文件
+│   └── nginx/            # Nginx 配置示例
+├── internal/             # 私有应用程序代码
+│   ├── bot/              # Bot 相关代码
+│   ├── handler/          # 消息处理器
+│   ├── logger/           # 日志系统
+│   └── models/           # 数据模型
+├── scripts/              # 构建和运行脚本
+│   ├── build.sh          # 构建脚本
+│   └── run.sh            # 运行脚本
+├── Dockerfile            # Docker 构建文件
+├── docker-compose.yml    # Docker Compose 配置
+├── go.mod                # Go 模块定义
+└── README.md             # 项目说明
+```
+
 ## 安装与使用
 
 ### 前置条件
@@ -32,16 +56,28 @@ git clone https://github.com/tlanyan/tg-antispam.git
 cd tg-antispam
 ```
 
-2. 修改 `run.sh` 文件
-
-   - 将 `YOUR_BOT_TOKEN_HERE` 替换为实际的 Bot Token
-   - 将 `YOUR_ADMIN_ID_HERE` 替换为管理员的 Telegram 用户 ID
-   - 设置 `WEBHOOK_POINT` 和 `LISTEN_PORT`。注意 `LISTEN_PORT` 是程序监听的端口，不一定需要和 `WEBHOOK_POINT` 中的端口相同，Docker 部署方式同理。如果程序在 Nginx 后来，Nginx 配置可参考 nginx.conf
-
-3. 运行机器人
+2. 构建项目
 
 ```bash
-./run.sh
+./scripts/build.sh
+```
+
+3. 设置环境变量
+
+```bash
+export TELEGRAM_BOT_TOKEN="your_token_here"
+export TELEGRAM_ADMIN_ID="your_admin_id_here"
+export WEBHOOK_POINT="https://your-domain.com/webhook"
+export LISTEN_PORT="8443"
+# 如果不使用Nginx/反向代理，需要设置证书文件路径
+# export CERT_FILE="/path/to/cert.pem"
+# export KEY_FILE="/path/to/key.pem"
+```
+
+4. 运行机器人
+
+```bash
+./build/tg-antispam
 ```
 
 ### 方式二：Docker 部署
@@ -66,8 +102,8 @@ echo "WEBHOOK_POINT=https://your-domain.com/webhook" >> .env
 echo "LISTEN_PORT=8443" >> .env
 
 # 如果程序不经过Nginx/proxy, 直接监听和webhook_point中的端口，取消注释并设置SSL证书
-# echo "CERT_FILE=/certs/cert.pem" >> .env
-# echo "KEY_FILE=/certs/key.pem" >> .env
+# echo "CERT_FILE=/app/certs/cert.pem" >> .env
+# echo "KEY_FILE=/app/certs/key.pem" >> .env
 ```
 
 3. 使用 Docker Compose 构建并启动容器
@@ -107,7 +143,7 @@ Webhook 模式允许机器人实时接收消息更新，能更好地捕获被其
 
    - 如果您已有服务器运行 Nginx 或 Apache，可以使用反向代理转发请求到该程序。
    - 此时无需设置 CERT_FILE 和 KEY_FILE，但 WEBHOOK_POINT 必须为 https://
-   - Nginx 反向代理配置可参考 nginx.conf
+   - Nginx 反向代理配置可参考 configs/nginx/server.conf
 
 ### 获取管理员 Telegram ID
 

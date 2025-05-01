@@ -15,4 +15,6 @@ tg-antispam
 .DS_Store
 
 # Documentation
-README.md 
+README.md
+
+/build

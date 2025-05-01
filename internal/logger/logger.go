@@ -1,4 +1,4 @@
-package main
+package logger
 
 import (
 	"fmt"
@@ -11,8 +11,8 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// SetupLogger configures logging to output to both stdout and a rotating log file
-func SetupLogger(logDir string) error {
+// Setup configures logging to output to both stdout and a rotating log file
+func Setup(logDir string) error {
 	// Create log directory if it doesn't exist
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
