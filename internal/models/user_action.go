@@ -5,20 +5,20 @@ import (
 	"time"
 )
 
-// UserActionInfo represents a banned user with an expiration time
+// UserActionInfo represents a user action with an expiration time
 type UserActionInfo struct {
 	UserID    int64
 	ExpiresAt time.Time
 }
 
-// UserActionManager manages the list of banned users with expirations
+// UserActionManager manages the list of user actions with expirations
 type UserActionManager struct {
 	users      map[int64]time.Time
 	expireMins int
 	mu         sync.RWMutex
 }
 
-// NewUserActionManager creates a new banned users list
+// NewUserActionManager creates a new user actions list
 func NewUserActionManager(expireMins int) *UserActionManager {
 	list := &UserActionManager{
 		users:      make(map[int64]time.Time),
@@ -31,7 +31,7 @@ func NewUserActionManager(expireMins int) *UserActionManager {
 	return list
 }
 
-// Add adds a user to the banned list with expiration
+// Add adds a user to the list with expiration
 func (b *UserActionManager) Add(userID int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -40,7 +40,7 @@ func (b *UserActionManager) Add(userID int64) {
 	b.users[userID] = time.Now().Add(time.Duration(b.expireMins) * time.Minute)
 }
 
-// Remove removes a user from the banned list
+// Remove removes a user from the list
 func (b *UserActionManager) Remove(userID int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -48,7 +48,7 @@ func (b *UserActionManager) Remove(userID int64) {
 	delete(b.users, userID)
 }
 
-// Contains checks if a user is in the banned list
+// Contains checks if a user is in the list
 func (b *UserActionManager) Contains(userID int64) bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

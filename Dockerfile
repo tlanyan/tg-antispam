@@ -26,10 +26,10 @@ WORKDIR /app
 COPY --from=builder /app/tg-antispam /app/
 
 # Copy configs
-COPY --from=builder /app/configs /app/configs
+COPY --from=builder /app/configs/config.yaml /app/config.yaml
 
 # Set executable permissions
 RUN chmod +x /app/tg-antispam
 
-# Run the application
-CMD ["/app/tg-antispam"]
+# Run the application with default config path
+CMD ["/app/tg-antispam", "-config=/app/config.yaml"]

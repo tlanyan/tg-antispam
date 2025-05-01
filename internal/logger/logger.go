@@ -9,10 +9,14 @@ import (
 	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"tg-antispam/internal/config"
 )
 
 // Setup configures logging to output to both stdout and a rotating log file
-func Setup(logDir string) error {
+func Setup(cfg *config.Config) error {
+	logDir := cfg.Logger.Directory
+
 	// Create log directory if it doesn't exist
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
@@ -22,13 +26,13 @@ func Setup(logDir string) error {
 	currentDate := time.Now().Format("2006-01-02")
 	logFilePath := filepath.Join(logDir, fmt.Sprintf("tg-antispam-%s.log", currentDate))
 
-	// Configure rotating logger
+	// Configure rotating logger using config values
 	rotatingLogger := &lumberjack.Logger{
 		Filename:   logFilePath,
-		MaxSize:    10, // megabytes
-		MaxBackups: 30, // number of backups
-		MaxAge:     90, // days
-		Compress:   true,
+		MaxSize:    cfg.Logger.Rotation.MaxSize,
+		MaxBackups: cfg.Logger.Rotation.MaxBackups,
+		MaxAge:     cfg.Logger.Rotation.MaxAge,
+		Compress:   cfg.Logger.Rotation.Compress,
 	}
 
 	// Create multi-writer to log to both file and stdout
@@ -45,18 +49,18 @@ func Setup(logDir string) error {
 }
 
 // GetRotatingLogWriter returns a rotating log writer for custom loggers
-func GetRotatingLogWriter(logDir, prefix string) io.Writer {
+func GetRotatingLogWriter(cfg *config.Config, prefix string) io.Writer {
 	// Format current date for the log filename
 	currentDate := time.Now().Format("2006-01-02")
-	logFilePath := filepath.Join(logDir, fmt.Sprintf("%s-%s.log", prefix, currentDate))
+	logFilePath := filepath.Join(cfg.Logger.Directory, fmt.Sprintf("%s-%s.log", prefix, currentDate))
 
-	// Configure rotating logger
+	// Configure rotating logger using config values
 	rotatingLogger := &lumberjack.Logger{
 		Filename:   logFilePath,
-		MaxSize:    10, // megabytes
-		MaxBackups: 30, // number of backups
-		MaxAge:     90, // days
-		Compress:   true,
+		MaxSize:    cfg.Logger.Rotation.MaxSize,
+		MaxBackups: cfg.Logger.Rotation.MaxBackups,
+		MaxAge:     cfg.Logger.Rotation.MaxAge,
+		Compress:   cfg.Logger.Rotation.Compress,
 	}
 
 	// Return multi-writer that writes to both stdout and the log file

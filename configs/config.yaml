@@ -1,0 +1,83 @@
+# TG-Antispam Configuration
+
+# Bot Configuration
+bot:
+  # Telegram Bot Token (required)
+  # 从 @BotFather 获取: https://t.me/BotFather
+  token: ""
+
+  # Webhook Configuration
+  webhook:
+    # Public webhook URL (required) - e.g., https://yourdomain.com/webhook
+    # 公开访问的Webhook URL，必须是HTTPS链接
+    endpoint: ""
+
+    # listen port, may be different the port int endpoint
+    # 程序监听端口，可以和endpoint中的端口不一样
+    listen_port: "8443"
+
+    # debug path, for debug webhook
+    # 调试路径，用于调试Webhook
+    debug_path: "/debug"
+
+    # SSL Certificate file path (optional if using HTTPS proxy like Nginx)
+    # SSL证书文件路径 (如果使用Nginx等反向代理，可不设置)
+    cert_file: ""
+
+    # SSL Key file path (optional if using HTTPS proxy like Nginx)
+    # SSL密钥文件路径 (如果使用Nginx等反向代理，可不设置)
+    key_file: ""
+
+# Admin Configuration
+admin:
+  # Telegram Admin User ID for notifications, -1 for disable
+  # 管理员Telegram用户ID，用于接收通知, 如果为-1则不启用
+  # 可向 @userinfobot 发送消息获取自己的ID
+  user_id: -1
+
+# Logging Configuration
+logger:
+  # Directory for log files
+  # 日志文件保存目录
+  directory: "logs"
+
+  # Log file rotation settings
+  # 日志文件轮转设置
+  rotation:
+    # Maximum size of log files in megabytes before rotating
+    # 单个日志文件的最大大小(MB)，超过后将轮转
+    max_size: 10
+
+    # Maximum number of old log files to retain
+    # 最多保留的旧日志文件数量
+    max_backups: 30
+
+    # Maximum number of days to retain old log files
+    # 旧日志文件最多保留的天数
+    max_age: 90
+
+    # Whether to compress rotated logs
+    # 是否压缩轮转的日志文件
+    compress: true
+
+# Anti-Spam Settings
+antispam:
+  # Whether restrict premium user by default
+  # 是否默认限制Premium用户
+  restrict_premium_user: true
+
+  # Whether to check for random usernames
+  # 是否检查随机用户名
+  check_random_username: true
+
+  # Whether to check for emojis in username
+  # 是否检查用户名中的表情符号
+  check_emoji_username: true
+
+  # Whether to check for Telegram links in bio
+  # 是否检查用户个人简介中的Telegram链接
+  check_bio_links: true
+
+  # Whether to use CAS (Combot Anti-Spam)
+  # 是否使用CAS(Combot反垃圾系统)检查
+  use_cas: true

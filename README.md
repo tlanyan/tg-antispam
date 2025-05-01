@@ -23,8 +23,10 @@ Telegram 防止垃圾用户（主要是 Premium 用户）的 bot
 │   └── tg-antispam/      # 主程序入口
 ├── configs/              # 配置文件
 │   └── nginx/            # Nginx 配置示例
+│   └── config.yaml       # YAML 配置文件
 ├── internal/             # 私有应用程序代码
 │   ├── bot/              # Bot 相关代码
+│   ├── config/           # 配置系统
 │   ├── handler/          # 消息处理器
 │   ├── logger/           # 日志系统
 │   └── models/           # 数据模型
@@ -35,6 +37,14 @@ Telegram 防止垃圾用户（主要是 Premium 用户）的 bot
 ├── docker-compose.yml    # Docker Compose 配置
 ├── go.mod                # Go 模块定义
 └── README.md             # 项目说明
+```
+
+## 配置系统
+
+TG-Antispam 使用 YAML 配置文件进行所有设置，默认配置文件位于 `config.yaml`。可以通过命令行参数 `-config` 指定其他位置的配置文件：
+
+```bash
+./tg-antispam -config=/path/to/config.yaml
 ```
 
 ## 安装与使用
@@ -62,22 +72,14 @@ cd tg-antispam
 ./scripts/build.sh
 ```
 
-3. 设置环境变量
+3. 配置
 
-```bash
-export TELEGRAM_BOT_TOKEN="your_token_here"
-export TELEGRAM_ADMIN_ID="your_admin_id_here"
-export WEBHOOK_POINT="https://your-domain.com/webhook"
-export LISTEN_PORT="8443"
-# 如果不使用Nginx/反向代理，需要设置证书文件路径
-# export CERT_FILE="/path/to/cert.pem"
-# export KEY_FILE="/path/to/key.pem"
-```
+编辑 `configs/config.yaml` 填入必要信息
 
 4. 运行机器人
 
 ```bash
-./build/tg-antispam
+./build/tg-antispam -config=/path/to/config.yaml
 ```
 
 ### 方式二：Docker 部署
@@ -89,22 +91,9 @@ git clone https://github.com/tlanyan/tg-antispam.git
 cd tg-antispam
 ```
 
-2. 设置环境变量
+2. 配置
 
-```bash
-# 基本配置
-echo "TELEGRAM_BOT_TOKEN=your_bot_token_here" > .env
-echo "TELEGRAM_ADMIN_ID=your_admin_id_here" >> .env
-
-# Webhook接入点配置
-echo "WEBHOOK_POINT=https://your-domain.com/webhook" >> .env
-
-echo "LISTEN_PORT=8443" >> .env
-
-# 如果程序不经过Nginx/proxy, 直接监听和webhook_point中的端口，取消注释并设置SSL证书
-# echo "CERT_FILE=/app/certs/cert.pem" >> .env
-# echo "KEY_FILE=/app/certs/key.pem" >> .env
-```
+编辑 `configs/config.yaml` 文件，填入必要的配置信息：
 
 3. 使用 Docker Compose 构建并启动容器
 
@@ -132,18 +121,18 @@ Webhook 模式允许机器人实时接收消息更新，能更好地捕获被其
    - Telegram 只允许使用以下端口：443、80、88 或 8443
    - 默认配置使用 8443 端口
 
-3. **环境变量配置**：
+3. **配置选项**：
 
-   - `WEBHOOK_POINT`: webhook 接入点，例如 "https://example.com/webhook"
-   - `LISTEN_PORT`: 程序监听端口号，默认为 "8443"
-   - `CERT_FILE`: SSL 证书文件路径（如果直接监听 webhook 回调地址端口）
-   - `KEY_FILE`: SSL 密钥文件路径（如果直接监听 webhook 回调地址端口）
+   - `bot.webhook.endpoint`: webhook 接入点，例如 "https://example.com/webhook"
+   - `bot.webhook.port`: 程序监听端口号，默认为 "8443"
+   - `bot.webhook.cert_file`: SSL 证书文件路径（如果直接监听 webhook 回调地址端口）
+   - `bot.webhook.key_file`: SSL 密钥文件路径（如果直接监听 webhook 回调地址端口）
 
 4. **使用 Nginx 等反向代理**：
 
    - 如果您已有服务器运行 Nginx 或 Apache，可以使用反向代理转发请求到该程序。
-   - 此时无需设置 CERT_FILE 和 KEY_FILE，但 WEBHOOK_POINT 必须为 https://
-   - Nginx 反向代理配置可参考 configs/nginx/server.conf
+   - 此时无需设置 cert_file 和 key_file，但 webhook.endpoint 必须为 https://
+   - Nginx 反向代理配置可参考 `configs/nginx/server.conf`
 
 ### 获取管理员 Telegram ID
 

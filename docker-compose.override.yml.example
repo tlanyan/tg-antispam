@@ -1,0 +1,17 @@
+version: "3.8"
+
+# This is an example override file for docker-compose.yml
+# Copy to docker-compose.override.yml and uncomment/customize sections you need
+
+services:
+  tg-antispam:
+    # Uncomment to expose a different port
+    # ports:
+    #   - "8443:8443"
+
+    # Uncomment to mount certificates for HTTPS
+    # volumes:
+    #   - ./certs:/app/certs
+
+    # Uncomment to use a custom config file
+    # command: ["/app/tg-antispam", "-config=/path/to/config.yaml"]

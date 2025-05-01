@@ -4,21 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
-	"strings"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
-)
 
-// Config represents bot configuration
-type Config struct {
-	Token        string
-	WebhookPoint string
-	ListenPort   string
-	CertFile     string
-	KeyFile      string
-}
+	"tg-antispam/internal/config"
+)
 
 // BotService represents the Telegram bot service
 type BotService struct {
@@ -37,44 +28,14 @@ func (b *BotService) Stop() {
 }
 
 // Initialize initializes the bot and webhook
-func Initialize(ctx context.Context, config Config) (*BotService, *WebhookServer, error) {
+func Initialize(ctx context.Context, cfg *config.Config) (*BotService, *WebhookServer, error) {
 	// Validate configuration
-	if config.Token == "" {
+	if cfg.Bot.Token == "" {
 		return nil, nil, fmt.Errorf("bot token is required")
 	}
 
-	if config.WebhookPoint == "" {
-		return nil, nil, fmt.Errorf("webhook point is required")
-	}
-
-	// Set default values
-	listenPort := config.ListenPort
-	if listenPort == "" {
-		listenPort = "8443" // Default listen port
-		log.Printf("Using default listen port: %s", listenPort)
-	}
-
-	// Parse URL to get path component
-	parsedURL, err := url.Parse(config.WebhookPoint)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid webhook point: %w", err)
-	}
-
-	webhookPath := parsedURL.Path
-	if webhookPath == "" {
-		webhookPath = "/webhook"
-		log.Printf("No path specified in webhook point, using default path: %s", webhookPath)
-	}
-
-	webhookListen := "0.0.0.0:" + listenPort
-
-	// Validate HTTPS setup
-	if (config.CertFile == "" || config.KeyFile == "") && !strings.HasPrefix(config.WebhookPoint, "https://") {
-		return nil, nil, fmt.Errorf("HTTPS configuration required: set CERT_FILE and KEY_FILE env vars or use a HTTPS proxy")
-	}
-
 	// Initialize bot
-	bot, err := telego.NewBot(config.Token, telego.WithDefaultDebugLogger())
+	bot, err := telego.NewBot(cfg.Bot.Token, telego.WithDefaultDebugLogger())
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize bot: %w", err)
 	}
@@ -92,11 +53,11 @@ func Initialize(ctx context.Context, config Config) (*BotService, *WebhookServer
 		return nil, nil, fmt.Errorf("failed to delete existing webhook: %w", err)
 	}
 
-	// Set fixed secret token instead of random generation
-	secretToken := "secure_webhook_token_" + config.Token[len(config.Token)-6:]
+	// Set fixed secret token or generate one based on bot token
+	secretToken := "secure_webhook_token_" + cfg.Bot.Token[len(cfg.Bot.Token)-6:]
 
 	// Set up webhook handler
-	bh, server, err := SetupWebhook(ctx, bot, config.WebhookPoint, webhookPath, webhookListen, secretToken, config.CertFile, config.KeyFile)
+	bh, server, err := SetupWebhook(ctx, bot, cfg.Bot.Webhook.Endpoint, cfg.Bot.Webhook.ListenPort, cfg.Bot.Webhook.DebugPath, secretToken, cfg.Bot.Webhook.CertFile, cfg.Bot.Webhook.KeyFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to setup webhook: %w", err)
 	}

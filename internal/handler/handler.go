@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
 
+	"tg-antispam/internal/config"
 	"tg-antispam/internal/models"
 )
 
@@ -23,10 +23,17 @@ var (
 	emojiRegex  = regexp.MustCompile(`[\x{1F600}-\x{1F64F}|\x{1F300}-\x{1F5FF}|\x{1F680}-\x{1F6FF}|\x{1F700}-\x{1F77F}|\x{1F780}-\x{1F7FF}|\x{1F800}-\x{1F8FF}|\x{1F900}-\x{1F9FF}|\x{1FA00}-\x{1FA6F}|\x{1FA70}-\x{1FAFF}|\x{2600}-\x{26FF}|\x{2700}-\x{27BF}]`)
 	tgLinkRegex = regexp.MustCompile(`t\.me`)
 
-	CasRecords = models.NewUserActionManager(30)
+	CasRecords = models.NewUserActionManager(10)
 	// Cache for group information
 	GroupNameCache = make(map[int64]string)
+	// Global configuration
+	globalConfig *config.Config
 )
+
+// Initialize initializes the handler with configuration
+func Initialize(cfg *config.Config) {
+	globalConfig = cfg
+}
 
 // SetupMessageHandlers configures all bot message and update handlers
 func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
@@ -36,14 +43,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 		log.Printf("Error getting bot info: %v", err)
 	}
 
-	adminID := int64(-1)
-	adminIDStr := os.Getenv("TELEGRAM_ADMIN_ID")
-	if adminIDStr != "" {
-		adminID, err = strconv.ParseInt(adminIDStr, 10, 64)
-		if err != nil {
-			adminID = -1
-		}
-	}
+	adminID := globalConfig.Admin.UserID
 
 	// Handle new chat members
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
@@ -54,17 +54,14 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 			return nil
 		}
 
-		shouldRestrict, _ := ShouldRestrictUser(ctx, bot, *message.From)
+		shouldRestrict, reason := CasRequest(message.From.ID)
 		if shouldRestrict {
-			shouldRestrict, reason := CasRequest(message.From.ID)
-			if shouldRestrict {
-				bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
-					ChatID:    telego.ChatID{ID: message.Chat.ID},
-					MessageID: message.MessageID,
-				})
-				RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-				SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From, reason, adminID)
-			}
+			bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
+				ChatID:    telego.ChatID{ID: message.Chat.ID},
+				MessageID: message.MessageID,
+			})
+			RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+			SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From, reason, adminID)
 		}
 
 		return nil
@@ -216,19 +213,24 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 
 // ShouldRestrictUser determines if a user should be restricted
 func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) (bool, string) {
+
+	if globalConfig.Antispam.RestrictPremiumUser && user.IsPremium {
+		return true, "用户是Premium用户"
+	}
+
 	// Check for random username pattern
-	if IsRandomUsername(user.Username) {
+	if globalConfig.Antispam.CheckRandomUsername && IsRandomUsername(user.Username) {
 		return true, "疑似随机用户名"
 	}
 
 	// Check for emoji in name
-	if HasEmoji(user.FirstName) || (user.LastName != "" && HasEmoji(user.LastName)) {
+	if globalConfig.Antispam.CheckEmojiUsername && (HasEmoji(user.FirstName) || (user.LastName != "" && HasEmoji(user.LastName))) {
 		return true, "用户名含有表情符号"
 	}
 
 	// Check bio for Telegram links
-	if HasTelegramLinksInBio(ctx, bot, user.ID) {
-		return true, "个人简介包含 Telegram 链接"
+	if globalConfig.Antispam.CheckBioLinks && HasTelegramLinksInBio(ctx, bot, user.ID) {
+		return true, "个人简介包含t.me链接"
 	}
 
 	return false, ""
@@ -236,9 +238,14 @@ func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) 
 
 // CasRequest checks if a user is in the CAS (Combot Anti-Spam) database
 func CasRequest(userID int64) (bool, string) {
+	// If CAS checking is disabled, return false
+	if globalConfig != nil && !globalConfig.Antispam.UseCAS {
+		return false, ""
+	}
+
 	// Check cache first
 	if CasRecords.Contains(userID) {
-		return true, ""
+		return false, ""
 	}
 
 	// Construct CAS API URL
@@ -249,34 +256,38 @@ func CasRequest(userID int64) (bool, string) {
 		Timeout: 5 * time.Second,
 	}
 
-	// Send GET request to CAS API
+	// Make the request
 	resp, err := client.Get(apiURL)
 	if err != nil {
-		log.Printf("Error querying CAS: %v", err)
+		log.Printf("Error making CAS request: %v", err)
 		return false, ""
 	}
 	defer resp.Body.Close()
 
-	// Parse response
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("CAS API returned non-OK status: %d", resp.StatusCode)
+		return false, ""
+	}
+
+	// Decode JSON response
 	var result struct {
-		OK     bool `json:"ok"`
+		Ok     bool `json:"ok"`
 		Result struct {
-			Offenses int64 `json:"offenses"`
+			Offenses int `json:"offenses"`
 		} `json:"result"`
 	}
 
+	CasRecords.Add(userID)
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		log.Printf("Error decoding CAS response: %v", err)
 		return false, ""
 	}
 
 	log.Printf("CAS response: %+v", resp.Body)
-	// Check if user is in CAS
-	if result.OK && result.Result.Offenses > 0 {
-		log.Printf("User %d is in CAS with %d offenses", userID, result.Result.Offenses)
-		// Add to cache
-		CasRecords.Add(userID)
-		return true, fmt.Sprintf("CAS记录 (违规次数: %d)", result.Result.Offenses)
+	// Check if user is in CAS database
+	if result.Ok && result.Result.Offenses > 0 {
+		return true, "用户在 CAS 黑名单中"
 	}
 
 	return false, ""
