@@ -28,13 +28,6 @@ bot:
     # SSL密钥文件路径 (如果使用Nginx等反向代理，可不设置)
     key_file: ""
 
-# Admin Configuration
-admin:
-  # Telegram Admin User ID for notifications, -1 for disable
-  # 管理员Telegram用户ID，用于接收通知, 如果为-1则不启用
-  # 可向 @userinfobot 发送消息获取自己的ID
-  user_id: -1
-
 # Logging Configuration
 logger:
   # Directory for log files

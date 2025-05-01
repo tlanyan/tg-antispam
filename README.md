@@ -49,12 +49,13 @@ TG-Antispam 使用 YAML 配置文件进行所有设置，默认配置文件位�
 
 ## 安装与使用
 
+如果不想部署希望直接使用，请添加机器人 [@justgodiebot](https://t.me/justgodiebot) 到群里并设置为管理员。如果希望收到封禁的消息提醒，请先与机器人互动一次。
+
 ### 前置条件
 
 - Go 1.24.1 或更高版本（直接构建运行）
 - Docker 或 Docker Compose（Docker 部署）
 - 一个 Telegram Bot Token（通过 [@BotFather](https://t.me/BotFather) 获取）
-- 管理员的 Telegram 用户 ID（用于接收通知）
 - 一个域名（需要能配置 https）
 
 ### 方式一：直接构建运行
@@ -134,16 +135,15 @@ Webhook 模式允许机器人实时接收消息更新，能更好地捕获被其
    - 此时无需设置 cert_file 和 key_file，但 webhook.endpoint 必须为 https://
    - Nginx 反向代理配置可参考 `configs/nginx/server.conf`
 
-### 获取管理员 Telegram ID
-
-向[@userinfobot](https://t.me/userinfobot)发送消息，它会返回你的用户 ID
-
 ### 添加到群组
 
 1. 将机器人添加到 Telegram 群组
 2. 将机器人设置为管理员，并授予以下权限：
+
    - 删除消息
    - 限制用户权限
+
+3. 如果希望收到机器人的消息提醒，需要先与机器人互动一次
 
 ## 注意事项
 

@@ -10,7 +10,6 @@ import (
 // Config is the global configuration structure
 type Config struct {
 	Bot      BotConfig      `mapstructure:"bot"`
-	Admin    AdminConfig    `mapstructure:"admin"`
 	Logger   LoggerConfig   `mapstructure:"logger"`
 	Antispam AntispamConfig `mapstructure:"antispam"`
 }
@@ -28,11 +27,6 @@ type WebhookConfig struct {
 	DebugPath  string `mapstructure:"debug_path"`
 	CertFile   string `mapstructure:"cert_file"`
 	KeyFile    string `mapstructure:"key_file"`
-}
-
-// AdminConfig contains admin notification settings
-type AdminConfig struct {
-	UserID int64 `mapstructure:"user_id"`
 }
 
 // LoggerConfig contains logging configuration

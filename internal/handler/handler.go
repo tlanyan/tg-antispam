@@ -24,8 +24,7 @@ var (
 	tgLinkRegex = regexp.MustCompile(`t\.me`)
 
 	CasRecords = models.NewUserActionManager(10)
-	// Cache for group information
-	GroupNameCache = make(map[int64]string)
+
 	// Global configuration
 	globalConfig *config.Config
 )
@@ -38,12 +37,7 @@ func Initialize(cfg *config.Config) {
 // SetupMessageHandlers configures all bot message and update handlers
 func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	// Skip messages from the bot itself
-	botInfo, err := bot.GetMe(context.Background())
-	if err != nil {
-		log.Printf("Error getting bot info: %v", err)
-	}
-
-	adminID := globalConfig.Admin.UserID
+	botID := bot.ID()
 
 	// Handle new chat members
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
@@ -54,6 +48,12 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 			return nil
 		}
 
+		groupInfo := GetGroupInfo(ctx, bot, message.Chat.ID)
+		if groupInfo == nil || !groupInfo.IsAdmin {
+			log.Printf("Group info not found or is not admin for chat ID: %d", message.Chat.ID)
+			return nil
+		}
+
 		shouldRestrict, reason := CasRequest(message.From.ID)
 		if shouldRestrict {
 			bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
@@ -61,7 +61,8 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				MessageID: message.MessageID,
 			})
 			RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-			SendWarning(ctx.Context(), bot, message.Chat.ID, *message.From, reason, adminID)
+			// Get admin ID for this group or use default
+			SendWarning(ctx.Context(), bot, groupInfo, *message.From, reason)
 		}
 
 		return nil
@@ -71,17 +72,40 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	bh.Handle(func(ctx *th.Context, update telego.Update) error {
 		// Process ChatMember updates (when users join chat or change status)
 		if update.ChatMember != nil {
-			newChatMember := update.ChatMember.NewChatMember
 			log.Printf("Chat member update: %+v", update.ChatMember)
+			chatId := update.ChatMember.Chat.ID
+			groupInfo := GetGroupInfo(ctx, bot, chatId)
+
+			newChatMember := update.ChatMember.NewChatMember
 			log.Printf("new Chat member: %+v", newChatMember)
 
+			fromUser := update.ChatMember.From
+
 			// Skip updates related to the bot itself
-			if botInfo != nil && update.ChatMember.From.ID == botInfo.ID {
+			if fromUser.ID == botID {
 				log.Printf("Skipping chat member update from the bot itself")
 				return nil
 			}
 
-			chatId := update.ChatMember.Chat.ID
+			// Track admin who promoted the bot
+			if newChatMember.MemberUser().ID == botID {
+				// Check if the bot's status was changed to admin
+				if newChatMember.MemberStatus() == telego.MemberStatusAdministrator {
+					// Record the user who promoted the bot to admin
+					log.Printf("Bot was promoted to admin in chat %d by user %d", chatId, fromUser.ID)
+					groupInfo.IsAdmin = true
+					groupInfo.AdminID = fromUser.ID
+				} else {
+					groupInfo.IsAdmin = false
+				}
+				return nil
+			}
+
+			if !groupInfo.IsAdmin {
+				log.Printf("Group info not found or is not admin for chat ID: %d", chatId)
+				return nil
+			}
+
 			user := newChatMember.MemberUser()
 			if newChatMember.MemberIsMember() {
 				// Skip bots
@@ -91,7 +115,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				}
 
 				// 首次入群，等待入群机器人处理
-				if !update.ChatMember.From.IsBot {
+				if !fromUser.IsBot {
 					log.Printf("Skipping first time join: %s", user.FirstName)
 					return nil
 				}
@@ -109,7 +133,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				}
 
 				// Check if user has permission to send messages first
-				hasPermission, err := UserCanSendMessages(ctx.Context(), bot, update.ChatMember.Chat.ID, user.ID)
+				hasPermission, err := UserCanSendMessages(ctx.Context(), bot, chatId, user.ID)
 				if err != nil {
 					log.Printf("Error checking user permissions: %v", err)
 					return nil
@@ -128,7 +152,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				if shouldRestrict {
 					log.Printf("Restricting user: %s, reason: %s", user.FirstName, reason)
 					RestrictUser(ctx.Context(), bot, chatId, user.ID)
-					SendWarning(ctx.Context(), bot, chatId, user, reason, adminID)
+					SendWarning(ctx.Context(), bot, groupInfo, user, reason)
 				}
 			}
 		}
@@ -284,7 +308,7 @@ func CasRequest(userID int64) (bool, string) {
 		return false, ""
 	}
 
-	log.Printf("CAS response: %+v", resp.Body)
+	log.Printf("CAS response: %+v", result)
 	// Check if user is in CAS database
 	if result.Ok && result.Result.Offenses > 0 {
 		return true, "用户在 CAS 黑名单中"
@@ -395,54 +419,17 @@ func GetLinkedUserName(user telego.User) string {
 	return linkedUserName
 }
 
-// GetLinkedGroupName gets a linked HTML representation of the group name with caching
-func GetLinkedGroupName(ctx context.Context, bot *telego.Bot, chatID int64) string {
-	// Check cache first
-	cachedName, exists := GroupNameCache[chatID]
-	if exists {
-		return cachedName
-	}
-
-	// Cache miss, fetch from API
-	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
-		ChatID: telego.ChatID{ID: chatID},
-	})
-	if err != nil {
-		log.Printf("Error getting chat info: %v", err)
-		return ""
-	}
-
-	var groupLink string
-	if chatInfo.Username != "" {
-		groupLink = fmt.Sprintf("https://t.me/%s", chatInfo.Username)
-	} else {
-		// For private groups, convert the chat ID to work with t.me links
-		// Telegram requires removing the -100 prefix from supergroup IDs for links
-		groupIDForLink := chatID
-		if groupIDForLink < -1000000000000 {
-			// Extract the actual ID from the negative number (skip the -100 prefix)
-			groupIDForLink = -groupIDForLink - 1000000000000
-		}
-		groupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
-	}
-
-	// Format group name with link using HTML
-	linkedGroupName := fmt.Sprintf("<a href=\"%s\">%s</a>", groupLink, chatInfo.Title)
-	GroupNameCache[chatID] = linkedGroupName
-	return linkedGroupName
-}
-
 // SendWarning sends a warning message about the restricted user
-func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego.User, reason string, adminID int64) {
-	if adminID < 0 {
-		log.Printf("Admin ID is not set, not sending warning")
+func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupInfo, user telego.User, reason string) {
+	if groupInfo.AdminID <= 0 {
+		log.Printf("Admin ID is not set, do not send warning")
 		return
 	}
 
 	linkedUserName := GetLinkedUserName(user)
-	linkedGroupName := GetLinkedGroupName(ctx, bot, chatID)
+	linkedGroupName := groupInfo.GetLinkedGroupName()
 	if linkedGroupName == "" {
-		log.Printf("Group name is not set, not sending warning")
+		log.Printf("failed to get Group name, do not send warning")
 		return
 	}
 
@@ -453,7 +440,7 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		linkedGroupName, linkedUserName, reason)
 
 	// Create unban button with callback data containing chat ID and user ID
-	unbanCallbackData := fmt.Sprintf("unban:%d:%d", chatID, user.ID)
+	unbanCallbackData := fmt.Sprintf("unban:%d:%d", groupInfo.GroupID, user.ID)
 	keyboard := [][]telego.InlineKeyboardButton{
 		{
 			{
@@ -468,7 +455,7 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 
 	// Send HTML message to admin with the unban button
 	adminMessageParams := telego.SendMessageParams{
-		ChatID:      telego.ChatID{ID: adminID},
+		ChatID:      telego.ChatID{ID: groupInfo.AdminID},
 		Text:        message,
 		ParseMode:   "HTML", // Enable HTML formatting
 		ReplyMarkup: &inlineKeyboard,
@@ -477,6 +464,7 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 	_, err := bot.SendMessage(ctx, &adminMessageParams)
 	if err != nil {
 		log.Printf("Error sending message to admin: %v", err)
+		groupInfo.AdminID = -1
 	} else {
 		log.Printf("Successfully sent restriction notice to admin for user %s", linkedUserName)
 	}

@@ -5,12 +5,6 @@ import (
 	"time"
 )
 
-// UserActionInfo represents a user action with an expiration time
-type UserActionInfo struct {
-	UserID    int64
-	ExpiresAt time.Time
-}
-
 // UserActionManager manages the list of user actions with expirations
 type UserActionManager struct {
 	users      map[int64]time.Time
