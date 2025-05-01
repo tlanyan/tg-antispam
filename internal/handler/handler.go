@@ -24,6 +24,8 @@ var (
 	tgLinkRegex = regexp.MustCompile(`t\.me`)
 
 	CasRecords = models.NewUserActionManager(30)
+	// Cache for group information
+	GroupNameCache = make(map[int64]string)
 )
 
 // SetupMessageHandlers configures all bot message and update handlers
@@ -363,13 +365,7 @@ func RestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int
 	}
 }
 
-// SendWarning sends a warning message about the restricted user
-func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego.User, reason string, adminID int64) {
-	if adminID < 0 {
-		log.Printf("Admin ID is not set, not sending warning")
-		return
-	}
-
+func GetLinkedUserName(user telego.User) string {
 	// Get user display name
 	userName := user.FirstName
 	if user.LastName != "" {
@@ -385,13 +381,24 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 	// Create user link
 	userLink := fmt.Sprintf("tg://user?id=%d", user.ID)
 	linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, displayName)
+	return linkedUserName
+}
 
+// GetLinkedGroupName gets a linked HTML representation of the group name with caching
+func GetLinkedGroupName(ctx context.Context, bot *telego.Bot, chatID int64) string {
+	// Check cache first
+	cachedName, exists := GroupNameCache[chatID]
+	if exists {
+		return cachedName
+	}
+
+	// Cache miss, fetch from API
 	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
 		log.Printf("Error getting chat info: %v", err)
-		return
+		return ""
 	}
 
 	var groupLink string
@@ -408,8 +415,25 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		groupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
 	}
 
-	// Format group name and user name with links using HTML
+	// Format group name with link using HTML
 	linkedGroupName := fmt.Sprintf("<a href=\"%s\">%s</a>", groupLink, chatInfo.Title)
+	GroupNameCache[chatID] = linkedGroupName
+	return linkedGroupName
+}
+
+// SendWarning sends a warning message about the restricted user
+func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego.User, reason string, adminID int64) {
+	if adminID < 0 {
+		log.Printf("Admin ID is not set, not sending warning")
+		return
+	}
+
+	linkedUserName := GetLinkedUserName(user)
+	linkedGroupName := GetLinkedGroupName(ctx, bot, chatID)
+	if linkedGroupName == "" {
+		log.Printf("Group name is not set, not sending warning")
+		return
+	}
 
 	// Create HTML formatted message for admin
 	message := fmt.Sprintf("⚠️ <b>安全提醒</b> [%s]\n"+
@@ -439,11 +463,11 @@ func SendWarning(ctx context.Context, bot *telego.Bot, chatID int64, user telego
 		ReplyMarkup: &inlineKeyboard,
 	}
 
-	_, err = bot.SendMessage(ctx, &adminMessageParams)
+	_, err := bot.SendMessage(ctx, &adminMessageParams)
 	if err != nil {
 		log.Printf("Error sending message to admin: %v", err)
 	} else {
-		log.Printf("Successfully sent restriction notice to admin for user %s", userName)
+		log.Printf("Successfully sent restriction notice to admin for user %s", linkedUserName)
 	}
 }
 
