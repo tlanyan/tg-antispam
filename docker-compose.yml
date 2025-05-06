@@ -1,15 +1,27 @@
-version: "3.8"
+version: "3"
 
 services:
-  tg-antispam:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: tg-antispam
-    restart: unless-stopped
-    ports:
-      - "8443:8443"
+  app:
+    build: .
+    restart: always
     volumes:
+      - ./configs:/app/configs
       - ./logs:/app/logs
-      # 如果使用证书文件，取消注释以下行
-      # - ./certs:/app/certs
+    depends_on:
+      - mysql
+
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tgantispam}
+      MYSQL_DATABASE: tgantispam
+      MYSQL_USER: ${MYSQL_USER:-tgantispam}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tgantispam}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+volumes:
+  mysql_data:

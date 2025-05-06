@@ -28,6 +28,36 @@ bot:
     # SSL密钥文件路径 (如果使用Nginx等反向代理，可不设置)
     key_file: ""
 
+# Database Configuration
+database:
+  # Whether to enable database support
+  # 是否启用数据库支持
+  enabled: false
+
+  # Database host
+  # 数据库主机地址
+  host: "localhost"
+
+  # Database port
+  # 数据库端口
+  port: 3306
+
+  # Database username
+  # 数据库用户名
+  username: "root"
+
+  # Database password
+  # 数据库密码
+  password: ""
+
+  # Database name
+  # 数据库名称
+  dbname: "tgantispam"
+
+  # Database charset
+  # 数据库字符集
+  charset: "utf8mb4"
+
 # Logging Configuration
 logger:
   # Directory for log files
@@ -57,19 +87,19 @@ logger:
 antispam:
   # Whether restrict premium user by default
   # 是否默认限制Premium用户
-  restrict_premium_user: true
+  ban_premium: true
 
   # Whether to check for random usernames
-  # 是否检查随机用户名
-  check_random_username: true
+  # 是否默认限制随机用户名用户
+  ban_random_username: true
 
   # Whether to check for emojis in username
-  # 是否检查用户名中的表情符号
-  check_emoji_username: true
+  # 是否默认限制用户名中的表情符号用户
+  ban_emoji_name: true
 
-  # Whether to check for Telegram links in bio
-  # 是否检查用户个人简介中的Telegram链接
-  check_bio_links: true
+  # Whether to check for suspicious links in bio
+  # 是否默认限制用户个人简介中包含可以链接用户
+  ban_bio_link: true
 
   # Whether to use CAS (Combot Anti-Spam)
   # 是否使用CAS(Combot反垃圾系统)检查

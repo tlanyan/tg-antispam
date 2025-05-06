@@ -4,7 +4,7 @@ version: "3.8"
 # Copy to docker-compose.override.yml and uncomment/customize sections you need
 
 services:
-  tg-antispam:
+  app:
     # Uncomment to expose a different port
     # ports:
     #   - "8443:8443"
@@ -15,3 +15,18 @@ services:
 
     # Uncomment to use a custom config file
     # command: ["/app/tg-antispam", "-config=/path/to/config.yaml"]
+
+    # Uncomment to configure environment variables
+    # environment:
+    #   - TZ=Asia/Shanghai
+
+  mysql:
+    # Uncomment to customize MySQL configuration
+    # environment:
+    #   - MYSQL_ROOT_PASSWORD=your_strong_password
+    #   - MYSQL_USER=custom_user
+    #   - MYSQL_PASSWORD=custom_password
+
+    # Uncomment to customize MySQL storage location
+    # volumes:
+    #   - ./mysql_data:/var/lib/mysql

@@ -12,6 +12,7 @@ type Config struct {
 	Bot      BotConfig      `mapstructure:"bot"`
 	Logger   LoggerConfig   `mapstructure:"logger"`
 	Antispam AntispamConfig `mapstructure:"antispam"`
+	Database DatabaseConfig `mapstructure:"database"`
 }
 
 // BotConfig contains Telegram bot configuration
@@ -43,13 +44,24 @@ type LogRotationConfig struct {
 	Compress   bool `mapstructure:"compress"`
 }
 
+// DatabaseConfig contains database connection settings
+type DatabaseConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	DBName   string `mapstructure:"dbname"`
+	Charset  string `mapstructure:"charset"`
+}
+
 // AntispamConfig contains anti-spam feature settings
 type AntispamConfig struct {
-	CheckRandomUsername bool `mapstructure:"check_random_username"`
-	CheckEmojiUsername  bool `mapstructure:"check_emoji_username"`
-	CheckBioLinks       bool `mapstructure:"check_bio_links"`
-	UseCAS              bool `mapstructure:"use_cas"`
-	RestrictPremiumUser bool `mapstructure:"restrict_premium_user"`
+	BanRandomUsername bool `mapstructure:"ban_random_username"`
+	BanEmojiName      bool `mapstructure:"ban_emoji_name"`
+	BanBioLink        bool `mapstructure:"ban_bio_link"`
+	UseCAS            bool `mapstructure:"use_cas"`
+	BanPremium        bool `mapstructure:"ban_premium"`
 }
 
 // Global configuration instance
@@ -108,11 +120,20 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("logger.rotation.max_age", 90)
 	v.SetDefault("logger.rotation.compress", true)
 
+	// Database defaults
+	v.SetDefault("database.enabled", false)
+	v.SetDefault("database.host", "localhost")
+	v.SetDefault("database.port", 3306)
+	v.SetDefault("database.username", "root")
+	v.SetDefault("database.password", "")
+	v.SetDefault("database.dbname", "tgantispam")
+	v.SetDefault("database.charset", "utf8mb4")
+
 	// Antispam defaults
-	v.SetDefault("antispam.check_random_username", true)
-	v.SetDefault("antispam.check_emoji_username", true)
-	v.SetDefault("antispam.check_bio_links", true)
+	v.SetDefault("antispam.ban_random_username", true)
+	v.SetDefault("antispam.ban_emoji_name", true)
+	v.SetDefault("antispam.ban_bio_link", true)
 	v.SetDefault("antispam.use_cas", true)
-	v.SetDefault("antispam.restrict_premium_user", true)
+	v.SetDefault("antispam.ban_premium", true)
 	v.SetDefault("antispam.cache_size", 30)
 }

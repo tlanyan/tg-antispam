@@ -1,0 +1,334 @@
+package models
+
+// Language constants
+const (
+	LangSimplifiedChinese  = "zh_CN"
+	LangTraditionalChinese = "zh_TW"
+	LangEnglish            = "en"
+)
+
+// Translation is a map of message keys to translated text
+type Translation map[string]string
+
+// Translations stores all language translations
+var Translations = map[string]Translation{
+	LangSimplifiedChinese: {
+		"help_title":                      "TG-AntiSpam Bot 帮助",
+		"help_description":                "此机器人可以帮助保护您的群组免受垃圾消息和恶意用户的侵害。",
+		"help_commands":                   "可用命令:",
+		"help_cmd_help":                   "/help - 显示此帮助消息",
+		"help_cmd_settings":               "/settings - 显示当前群组设置",
+		"help_cmd_toggle_premium":         "/toggle_premium - 切换是否默认禁止Premium用户",
+		"help_cmd_toggle_cas":             "/toggle_cas - 切换是否启用CAS验证",
+		"help_cmd_toggle_notifications":   "/toggle_notifications - 切换是否发送管理员通知",
+		"help_cmd_language":               "/language - 设置机器人语言",
+		"help_cmd_toggle_random_username": "/toggle_random_username - 切换是否默认禁止随机用户名用户",
+		"help_cmd_toggle_emoji_name":      "/toggle_emoji_name - 切换是否默认禁止姓名表情符号用户",
+		"help_cmd_toggle_bio_link":        "/toggle_bio_link - 切换是否默认禁止个人简介可疑链接用户",
+		"help_note":                       "注意: 只有群组管理员才能更改设置。",
+
+		// Command descriptions for Telegram command menu
+		"cmd_desc_help":                   "显示帮助信息",
+		"cmd_desc_settings":               "查看/修改群组设置",
+		"cmd_desc_toggle_premium":         "切换Premium用户封禁",
+		"cmd_desc_toggle_cas":             "切换CAS验证",
+		"cmd_desc_toggle_notifications":   "切换管理员通知",
+		"cmd_desc_language":               "设置机器人语言",
+		"cmd_desc_toggle_random_username": "切换随机用户名封禁",
+		"cmd_desc_toggle_emoji_name":      "切换姓名表情符号封禁",
+		"cmd_desc_toggle_bio_link":        "切换个人简介可疑链接封禁",
+
+		"user_not_admin": "只有群组管理员才能更改设置。",
+
+		"settings_title":             "%s 的设置",
+		"settings_bot_status":        "机器人状态:",
+		"settings_active":            "✅ 已激活",
+		"settings_current":           "当前设置:",
+		"settings_ban_premium":       "- 默认封禁Premium用户: %s",
+		"settings_cas":               "- CAS验证: %s",
+		"settings_random_username":   "- 随机用户名封禁: %s",
+		"settings_emoji_name":        "- 姓名表情符号封禁: %s",
+		"settings_bio_link":          "- 个人简介可疑链接封禁: %s",
+		"settings_notifications":     "- 管理员通知: %s",
+		"settings_language":          "- 语言: %s",
+		"settings_commands":          "使用以下命令更改设置:",
+		"settings_cmd_premium":       "/toggle_premium - 切换Premium用户封禁",
+		"settings_cmd_cas":           "/toggle_cas - 切换CAS验证",
+		"settings_cmd_notifications": "/toggle_notifications - 切换管理员通知",
+		"settings_cmd_language":      "/language - 设置机器人语言",
+
+		"enabled":  "✅ 启用",
+		"disabled": "❌ 禁用",
+
+		"setting_premium":         "Premium用户封禁",
+		"setting_cas":             "CAS验证",
+		"setting_random_username": "随机用户名封禁",
+		"setting_emoji_name":      "姓名表情符号封禁",
+		"setting_bio_link":        "个人简介可疑链接封禁",
+		"setting_notifications":   "管理员通知",
+		"setting_language":        "语言",
+
+		"setting_updated": "%s 已 %s",
+		"enabled_text":    "启用",
+		"disabled_text":   "禁用",
+		"updated_text":    "已更新为",
+
+		"language_select":  "请选择语言:",
+		"language_zh_CN":   "简体中文",
+		"language_zh_TW":   "繁体中文",
+		"language_en":      "English",
+		"language_updated": "语言已更新为: %s",
+
+		"warning_title":            "⚠️ <b>安全提醒</b> [%s]",
+		"warning_restricted":       "用户 %s 已被限制发送消息和媒体的权限",
+		"warning_reason":           "<b>原因</b>: %s",
+		"warning_unban_button":     "解除限制",
+		"warning_user_unbanned":    "✅ 用户已成功解封",
+		"warning_unbanned_message": "✅ <b>用户已解封</b>\n用户 %s 已被解除限制，现在可以正常发言。",
+
+		// New translations for private chat mode
+		"please_use_private_chat": "请在私聊中使用此命令，以管理您的群组设置",
+		"select_group":            "请选择您要管理的群组:",
+		"enter_group_id":          "请输入群组ID，格式为纯数字（例如：-1001234567890）",
+		"action":                  "操作",
+		"for_group":               "当前群组: %s",
+		"no_admin_groups":         "您不是任何群组的管理员，或者机器人未添加到您管理的群组中",
+		"group_not_found":         "找不到此群组，或机器人不是该群组的成员",
+		"invalid_group_id":        "无效的群组ID，请输入正确的数字格式",
+		"invalid_format":          "无效的格式，请重试",
+		"unknown_action":          "未知操作，请重试",
+		"action_completed":        "操作已完成",
+
+		// 用户被限制的原因
+		"reason_premium_user":    "Premium用户",
+		"reason_random_username": "随机用户名",
+		"reason_emoji_name":      "姓名含有表情符号",
+		"reason_bio_link":        "个人简介包含可疑链接",
+		"reason_cas_blacklisted": "用户在 CAS 黑名单中",
+	},
+
+	LangTraditionalChinese: {
+		"help_title":                      "TG-AntiSpam Bot 幫助",
+		"help_description":                "此機器人可以幫助保護您的群組免受垃圾消息和惡意用戶的侵害。",
+		"help_commands":                   "可用命令:",
+		"help_cmd_help":                   "/help - 顯示此幫助消息",
+		"help_cmd_settings":               "/settings - 顯示當前群組設置",
+		"help_cmd_toggle_premium":         "/toggle_premium - 切換是否默認禁止Premium用戶",
+		"help_cmd_toggle_cas":             "/toggle_cas - 切換是否啟用CAS驗證",
+		"help_cmd_toggle_random_username": "/toggle_random_username - 切換是否默認禁止隨機用戶名用户",
+		"help_cmd_toggle_emoji_name":      "/toggle_emoji_name - 切換是否默認禁止姓名表情符號用户",
+		"help_cmd_toggle_bio_link":        "/toggle_bio_link - 切換是否默認禁止個人簡介可疑連結用户",
+		"help_cmd_toggle_notifications":   "/toggle_notifications - 切換是否發送管理員通知",
+		"help_cmd_language":               "/language - 設置機器人語言",
+		"help_note":                       "注意: 只有群組管理員才能更改設置。",
+
+		// Command descriptions for Telegram command menu
+		"cmd_desc_help":                   "顯示幫助信息",
+		"cmd_desc_settings":               "查看/修改群組設置",
+		"cmd_desc_toggle_premium":         "切換Premium用戶封禁",
+		"cmd_desc_toggle_cas":             "切換CAS驗證",
+		"cmd_desc_toggle_random_username": "切換隨機用戶名封禁",
+		"cmd_desc_toggle_emoji_name":      "切換姓名表情符號封禁",
+		"cmd_desc_toggle_bio_link":        "切換個人簡介可疑連結封禁",
+		"cmd_desc_toggle_notifications":   "切換管理員通知",
+		"cmd_desc_language":               "設置機器人語言",
+
+		"user_not_admin": "只有群組管理員才能更改設置。",
+
+		"settings_title":             "%s 的設置",
+		"settings_bot_status":        "機器人狀態:",
+		"settings_active":            "✅ 已激活",
+		"settings_current":           "當前設置:",
+		"settings_ban_premium":       "- 默認封禁Premium用戶: %s",
+		"settings_cas":               "- CAS驗證: %s",
+		"settings_random_username":   "- 隨機用戶名封禁: %s",
+		"settings_emoji_name":        "- 姓名表情符號封禁: %s",
+		"settings_bio_link":          "- 個人簡介可疑連結封禁: %s",
+		"settings_notifications":     "- 管理員通知: %s",
+		"settings_language":          "- 語言: %s",
+		"settings_commands":          "使用以下命令更改設置:",
+		"settings_cmd_premium":       "/toggle_premium - 切換Premium用戶封禁",
+		"settings_cmd_cas":           "/toggle_cas - 切換CAS驗證",
+		"settings_cmd_notifications": "/toggle_notifications - 切換管理員通知",
+		"settings_cmd_language":      "/language - 設置機器人語言",
+
+		"enabled":  "✅ 啟用",
+		"disabled": "❌ 禁用",
+
+		"setting_premium":         "Premium用戶封禁",
+		"setting_cas":             "CAS驗證",
+		"setting_random_username": "隨機用戶名封禁",
+		"setting_emoji_name":      "姓名表情符號封禁",
+		"setting_bio_link":        "個人簡介可疑連結封禁",
+		"setting_notifications":   "管理員通知",
+		"setting_language":        "語言",
+
+		"setting_updated": "%s 已 %s",
+		"enabled_text":    "啟用",
+		"disabled_text":   "禁用",
+		"updated_text":    "已更新為",
+
+		"language_select":  "請選擇語言:",
+		"language_zh_CN":   "簡體中文",
+		"language_zh_TW":   "繁體中文",
+		"language_en":      "English",
+		"language_updated": "語言已更新為: %s",
+
+		"warning_title":            "⚠️ <b>安全提醒</b> [%s]",
+		"warning_restricted":       "用戶 %s 已被限制發送消息和媒體的權限",
+		"warning_reason":           "<b>原因</b>: %s",
+		"warning_unban_button":     "解除限制",
+		"warning_user_unbanned":    "✅ 用戶已成功解封",
+		"warning_unbanned_message": "✅ <b>用戶已解封</b>\n用戶 %s 已被解除限制，現在可以正常發言。",
+
+		// New translations for private chat mode
+		"please_use_private_chat": "請在私聊中使用此命令，以管理您的群組設置",
+		"select_group":            "請選擇您要管理的群組:",
+		"enter_group_id":          "請輸入群組ID，格式為純數字（例如：-1001234567890）",
+		"action":                  "操作",
+		"for_group":               "當前群組: %s",
+		"no_admin_groups":         "您不是任何群組的管理員，或者機器人未添加到您管理的群組中",
+		"group_not_found":         "找不到此群組，或機器人不是該群組的成員",
+		"invalid_group_id":        "無效的群組ID，請輸入正確的數字格式",
+		"invalid_format":          "無效的格式，請重試",
+		"unknown_action":          "未知操作，請重試",
+		"action_completed":        "操作已完成",
+
+		// 用户被限制的原因
+		"reason_premium_user":    "Premium用戶",
+		"reason_random_username": "隨機用戶名",
+		"reason_emoji_name":      "姓名含有表情符號",
+		"reason_bio_link":        "個人簡介包含可疑連結",
+		"reason_cas_blacklisted": "用戶在 CAS 黑名單中",
+	},
+
+	LangEnglish: {
+		"help_title":                      "TG-AntiSpam Bot Help",
+		"help_description":                "This bot helps protect your group from spam messages and malicious users.",
+		"help_commands":                   "Available commands:",
+		"help_cmd_help":                   "/help - Show this help message",
+		"help_cmd_settings":               "/settings - Display current group settings",
+		"help_cmd_toggle_premium":         "/toggle_premium - Toggle default ban of Premium users",
+		"help_cmd_toggle_cas":             "/toggle_cas - Toggle CAS verification",
+		"help_cmd_toggle_random_username": "/toggle_random_username - Toggle random username check",
+		"help_cmd_toggle_emoji_name":      "/toggle_emoji_name - Toggle name emoji check",
+		"help_cmd_toggle_bio_link":        "/toggle_bio_link - Toggle bio link check",
+		"help_cmd_toggle_notifications":   "/toggle_notifications - Toggle admin notifications",
+		"help_cmd_language":               "/language - Set bot language",
+		"help_note":                       "Note: Only group administrators can change settings.",
+
+		// Command descriptions for Telegram command menu
+		"cmd_desc_help":                   "Show help information",
+		"cmd_desc_settings":               "View/modify group settings",
+		"cmd_desc_toggle_premium":         "Toggle Premium user banning",
+		"cmd_desc_toggle_cas":             "Toggle CAS verification",
+		"cmd_desc_toggle_notifications":   "Toggle admin notifications",
+		"cmd_desc_language":               "Set bot language",
+		"cmd_desc_toggle_random_username": "Toggle random username check",
+		"cmd_desc_toggle_emoji_name":      "Toggle name emoji check",
+		"cmd_desc_toggle_bio_link":        "Toggle bio link check",
+
+		"user_not_admin": "Only group administrators can change settings.",
+
+		"settings_title":             "Settings for %s",
+		"settings_bot_status":        "Bot Status:",
+		"settings_active":            "✅ Active",
+		"settings_current":           "Current Settings:",
+		"settings_ban_premium":       "- Ban Premium Users by Default: %s",
+		"settings_cas":               "- CAS Verification: %s",
+		"settings_random_username":   "- Random Username Check: %s",
+		"settings_emoji_name":        "- Name Emoji Check: %s",
+		"settings_bio_link":          "- Bio Link Check: %s",
+		"settings_notifications":     "- Admin Notifications: %s",
+		"settings_language":          "- Language: %s",
+		"settings_commands":          "Use these commands to change settings:",
+		"settings_cmd_premium":       "/toggle_premium - Toggle Premium user ban",
+		"settings_cmd_cas":           "/toggle_cas - Toggle CAS verification",
+		"settings_cmd_notifications": "/toggle_notifications - Toggle admin notifications",
+		"settings_cmd_language":      "/language - Set bot language",
+
+		"enabled":  "✅ Enabled",
+		"disabled": "❌ Disabled",
+
+		"setting_premium":         "Premium user ban",
+		"setting_cas":             "CAS verification",
+		"setting_random_username": "Random username check",
+		"setting_emoji_name":      "Name emoji check",
+		"setting_bio_link":        "Bio link check",
+		"setting_notifications":   "Admin notifications",
+		"setting_language":        "Language",
+
+		"setting_updated": "%s is now %s",
+		"enabled_text":    "enabled",
+		"disabled_text":   "disabled",
+		"updated_text":    "updated to",
+
+		"language_select":  "Please select a language:",
+		"language_zh_CN":   "Simplified Chinese",
+		"language_zh_TW":   "Traditional Chinese",
+		"language_en":      "English",
+		"language_updated": "Language updated to: %s",
+
+		"warning_title":            "⚠️ <b>Security Alert</b> [%s]",
+		"warning_restricted":       "User %s has been restricted from sending messages and media",
+		"warning_reason":           "<b>Reason</b>: %s",
+		"warning_unban_button":     "Remove Restriction",
+		"warning_user_unbanned":    "✅ User has been successfully unrestricted",
+		"warning_unbanned_message": "✅ <b>User Unrestricted</b>\nUser %s has been unrestricted and can now send messages.",
+
+		// New translations for private chat mode
+		"please_use_private_chat": "Please use this command in a private chat with the bot to manage your group settings",
+		"select_group":            "Please select a group to manage:",
+		"enter_group_id":          "Please enter the Group ID as a numeric value (e.g., -1001234567890)",
+		"action":                  "Action",
+		"for_group":               "Current group: %s",
+		"no_admin_groups":         "You are not an admin in any groups, or the bot has not been added to groups you administer",
+		"group_not_found":         "Group not found, or the bot is not a member of that group",
+		"invalid_group_id":        "Invalid group ID, please enter a valid numeric format",
+		"invalid_format":          "Invalid format, please try again",
+		"unknown_action":          "Unknown action, please try again",
+		"action_completed":        "Action completed successfully",
+
+		// 用户被限制的原因
+		"reason_premium_user":    "Premium user",
+		"reason_random_username": "random username",
+		"reason_emoji_name":      "Name contains emojis",
+		"reason_bio_link":        "Bio contains suspicious links",
+		"reason_cas_blacklisted": "User is on the CAS blacklist",
+	},
+}
+
+// GetTranslation returns the correct translation for a given language code and key
+func GetTranslation(lang, key string) string {
+	// Default to Simplified Chinese if language not supported
+	if _, ok := Translations[lang]; !ok {
+		lang = LangSimplifiedChinese
+	}
+
+	// Get translation for key
+	if translation, ok := Translations[lang][key]; ok {
+		return translation
+	}
+
+	// Fall back to Simplified Chinese if key not found in specified language
+	if translation, ok := Translations[LangSimplifiedChinese][key]; ok {
+		return translation
+	}
+
+	// Return the key itself if translation not found
+	return key
+}
+
+// GetLanguageName returns the localized name of a language code
+func GetLanguageName(lang, langCode string) string {
+	switch langCode {
+	case LangSimplifiedChinese:
+		return GetTranslation(lang, "language_zh_CN")
+	case LangTraditionalChinese:
+		return GetTranslation(lang, "language_zh_TW")
+	case LangEnglish:
+		return GetTranslation(lang, "language_en")
+	default:
+		return langCode
+	}
+}

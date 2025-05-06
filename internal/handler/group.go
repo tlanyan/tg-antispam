@@ -6,29 +6,90 @@ import (
 	"log"
 
 	"tg-antispam/internal/models"
+	"tg-antispam/internal/storage"
 
 	"github.com/mymmrac/telego"
 )
 
 var (
 	groupInfoManager = models.NewGroupInfoManager()
+	groupRepository  *storage.GroupRepository
 )
 
+// InitGroupRepository initializes the group repository if database is enabled
+func InitGroupRepository() {
+	if storage.DB != nil {
+		groupRepository = storage.NewGroupRepository(storage.DB)
+		if err := groupRepository.MigrateTable(); err != nil {
+			log.Printf("Error migrating GroupInfo table: %v", err)
+		}
+		// Load existing groups from the database
+		if err := storage.InitializeGroups(groupInfoManager); err != nil {
+			log.Printf("Error loading groups from database: %v", err)
+		}
+	}
+}
+
 func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.GroupInfo {
+	// First check the in-memory cache
 	groupInfo := groupInfoManager.GetGroupInfo(chatID)
+
+	// If not found in cache but database is enabled, try to load it from database
+	if groupInfo == nil && groupRepository != nil {
+		dbGroupInfo, err := groupRepository.GetGroupInfo(chatID)
+		if err != nil {
+			log.Printf("Error fetching group info from database: %v", err)
+		} else if dbGroupInfo != nil {
+			groupInfo = dbGroupInfo
+			// Add to cache
+			groupInfoManager.AddGroupInfo(groupInfo)
+		}
+	}
+
+	// If still not found, create a new one with default values
 	if groupInfo == nil {
 		groupInfo = &models.GroupInfo{
-			GroupID: chatID,
-			IsAdmin: false,
-			AdminID: -1,
+			GroupID:            chatID,
+			IsAdmin:            false,
+			AdminID:            -1,
+			EnableNotification: true,
+			BanPremium:         globalConfig.Antispam.BanPremium,
+			BanEmojiName:       globalConfig.Antispam.BanEmojiName,
+			BanRandomUsername:  globalConfig.Antispam.BanRandomUsername,
+			BanBioLink:         globalConfig.Antispam.BanBioLink,
+			EnableCAS:          globalConfig.Antispam.UseCAS,
+			Language:           "zh_CN",
 		}
 
 		groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(ctx, bot, chatID)
 		groupInfo.GroupName, groupInfo.GroupLink = GetGroupName(ctx, bot, chatID)
 		log.Printf("Group info: %+v", groupInfo)
+
+		// Save to cache
 		groupInfoManager.AddGroupInfo(groupInfo)
+
+		// Save to database if enabled
+		if groupRepository != nil {
+			if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
+				log.Printf("Error saving group info to database: %v", err)
+			}
+		}
 	}
+
 	return groupInfo
+}
+
+// UpdateGroupInfo updates group information in cache and database
+func UpdateGroupInfo(groupInfo *models.GroupInfo) {
+	// Update cache
+	groupInfoManager.AddGroupInfo(groupInfo)
+
+	// Update database if enabled
+	if groupRepository != nil {
+		if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
+			log.Printf("Error updating group info in database: %v", err)
+		}
+	}
 }
 
 func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64, bool) {

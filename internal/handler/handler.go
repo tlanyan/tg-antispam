@@ -36,33 +36,48 @@ func Initialize(cfg *config.Config) {
 
 // SetupMessageHandlers configures all bot message and update handlers
 func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
+	// Initialize group repository if database is enabled
+	InitGroupRepository()
+
+	// Register commands
+	RegisterCommands(bh, bot)
+
 	// Skip messages from the bot itself
 	botID := bot.ID()
 
 	// Handle new chat members
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		log.Printf("Processing message: %+v", message)
-
 		// Skip if no sender information or sender is a bot
 		if message.From == nil || message.From.IsBot {
 			return nil
 		}
 
 		groupInfo := GetGroupInfo(ctx, bot, message.Chat.ID)
-		if groupInfo == nil || !groupInfo.IsAdmin {
-			log.Printf("Group info not found or is not admin for chat ID: %d", message.Chat.ID)
+		if !groupInfo.IsAdmin {
+			log.Printf("bot is not an admin for chat ID: %d", message.Chat.ID)
 			return nil
 		}
+		log.Printf("Processing message: %+v", message)
 
-		shouldRestrict, reason := CasRequest(message.From.ID)
+		// Use database configuration if available
+		useCAS := groupInfo.EnableCAS
+		shouldRestrict := false
+		reason := ""
+
+		if useCAS {
+			shouldRestrict, reason = CasRequest(message.From.ID)
+		}
+
 		if shouldRestrict {
 			bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
 				ChatID:    telego.ChatID{ID: message.Chat.ID},
 				MessageID: message.MessageID,
 			})
 			RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-			// Get admin ID for this group or use default
-			SendWarning(ctx.Context(), bot, groupInfo, *message.From, reason)
+			// Send warning only if notifications are enabled
+			if groupInfo.EnableNotification {
+				SendWarning(ctx.Context(), bot, groupInfo, *message.From, reason)
+			}
 		}
 
 		return nil
@@ -95,14 +110,18 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 					log.Printf("Bot was promoted to admin in chat %d by user %d", chatId, fromUser.ID)
 					groupInfo.IsAdmin = true
 					groupInfo.AdminID = fromUser.ID
+					// Update the group info
+					UpdateGroupInfo(groupInfo)
 				} else {
 					groupInfo.IsAdmin = false
+					// Update the group info
+					UpdateGroupInfo(groupInfo)
 				}
 				return nil
 			}
 
 			if !groupInfo.IsAdmin {
-				log.Printf("Group info not found or is not admin for chat ID: %d", chatId)
+				log.Printf("Bot not and admin for chat ID: %d", chatId)
 				return nil
 			}
 
@@ -115,6 +134,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				}
 
 				// 首次入群，等待入群机器人处理
+				// @TODO: 需要优化，如果没有其它机器人，则需要处理
 				if !fromUser.IsBot {
 					log.Printf("Skipping first time join: %s", user.FirstName)
 					return nil
@@ -126,7 +146,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 					if ok {
 						// 现在可以访问 CanSendMessages 属性
 						canSendMsg := restrictedMember.CanSendMessages
-						if canSendMsg {
+						if !canSendMsg {
 							return nil
 						}
 					}
@@ -145,14 +165,18 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				}
 
 				// Check if user should be restricted
-				shouldRestrict, reason := ShouldRestrictUser(ctx, bot, user)
-				if !shouldRestrict {
+				shouldRestrict, reason := ShouldRestrictUser(ctx, bot, groupInfo, user)
+				if !shouldRestrict && groupInfo.EnableCAS {
 					shouldRestrict, reason = CasRequest(user.ID)
 				}
+
 				if shouldRestrict {
 					log.Printf("Restricting user: %s, reason: %s", user.FirstName, reason)
 					RestrictUser(ctx.Context(), bot, chatId, user.ID)
-					SendWarning(ctx.Context(), bot, groupInfo, user, reason)
+					// Send warning only if notifications are enabled
+					if groupInfo.EnableNotification {
+						SendWarning(ctx.Context(), bot, groupInfo, user, reason)
+					}
 				}
 			}
 		}
@@ -161,100 +185,30 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 
 	// Handle callback queries for unban button
 	bh.HandleCallbackQuery(func(ctx *th.Context, query telego.CallbackQuery) error {
-		log.Printf("Full callback query object: %+v", query)
-
-		// Check if it's an unban request
-		if strings.HasPrefix(query.Data, "unban:") {
-			log.Printf("Processing unban request with data: %s", query.Data)
-			// Extract chat ID and user ID from callback data
-			parts := strings.Split(query.Data, ":")
-			if len(parts) != 3 {
-				return nil
-			}
-
-			chatID, err := strconv.ParseInt(parts[1], 10, 64)
-			if err != nil {
-				log.Printf("Error parsing chat ID: %v", err)
-				return nil
-			}
-
-			userID, err := strconv.ParseInt(parts[2], 10, 64)
-			if err != nil {
-				log.Printf("Error parsing user ID: %v", err)
-				return nil
-			}
-
-			// Unban the user
-			UnrestrictUser(ctx.Context(), bot, chatID, userID)
-
-			// Get user information
-			userInfo, err := bot.GetChat(ctx.Context(), &telego.GetChatParams{
-				ChatID: telego.ChatID{ID: userID},
-			})
-			if err != nil {
-				log.Printf("Error getting user info: %v", err)
-				return nil
-			}
-
-			userName := userInfo.FirstName
-			if userInfo.LastName != "" {
-				userName += " " + userInfo.LastName
-			}
-
-			// Create user link
-			userLink := fmt.Sprintf("tg://user?id=%d", userID)
-			linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, userName)
-
-			// Update the message
-			messageText := fmt.Sprintf("✅ <b>用户已解封</b>\n"+
-				"用户 %s 已被解除限制，现在可以正常发言。", linkedUserName)
-
-			// Check if we have a message to edit
-			if query.Message != nil {
-				// Access message fields correctly for MaybeInaccessibleMessage type
-				chatID := query.Message.GetChat().ID
-				messageID := query.Message.GetMessageID()
-
-				bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
-					ChatID:      telego.ChatID{ID: chatID},
-					MessageID:   messageID,
-					Text:        messageText,
-					ParseMode:   "HTML",
-					ReplyMarkup: nil, // Remove the button
-				})
-			}
-
-			// Answer the callback query
-			bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
-				CallbackQueryID: query.ID,
-				Text:            "✅ 用户已成功解封",
-			})
-		}
-
-		return nil
+		return HandleCallbackQuery(ctx, bot, query)
 	})
 }
 
 // ShouldRestrictUser determines if a user should be restricted
-func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, user telego.User) (bool, string) {
+func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupInfo, user telego.User) (bool, string) {
 
-	if globalConfig.Antispam.RestrictPremiumUser && user.IsPremium {
-		return true, "用户是Premium用户"
+	if groupInfo.BanPremium && user.IsPremium {
+		return true, "reason_premium_user"
 	}
 
 	// Check for random username pattern
-	if globalConfig.Antispam.CheckRandomUsername && IsRandomUsername(user.Username) {
-		return true, "疑似随机用户名"
+	if groupInfo.BanRandomUsername && IsRandomUsername(user.Username) {
+		return true, "reason_random_username"
 	}
 
 	// Check for emoji in name
-	if globalConfig.Antispam.CheckEmojiUsername && (HasEmoji(user.FirstName) || (user.LastName != "" && HasEmoji(user.LastName))) {
-		return true, "用户名含有表情符号"
+	if groupInfo.BanEmojiName && (HasEmoji(user.FirstName) || (user.LastName != "" && HasEmoji(user.LastName))) {
+		return true, "reason_emoji_name"
 	}
 
-	// Check bio for Telegram links
-	if globalConfig.Antispam.CheckBioLinks && HasTelegramLinksInBio(ctx, bot, user.ID) {
-		return true, "个人简介包含t.me链接"
+	// Check bio for links
+	if groupInfo.BanBioLink && HasLinksInBio(ctx, bot, user.ID) {
+		return true, "reason_bio_link"
 	}
 
 	return false, ""
@@ -311,14 +265,14 @@ func CasRequest(userID int64) (bool, string) {
 	log.Printf("CAS response: %+v", result)
 	// Check if user is in CAS database
 	if result.Ok && result.Result.Offenses > 0 {
-		return true, "用户在 CAS 黑名单中"
+		return true, "reason_cas_blacklisted"
 	}
 
 	return false, ""
 }
 
-// HasTelegramLinksInBio checks if user's bio contains t.me links
-func HasTelegramLinksInBio(ctx context.Context, bot *telego.Bot, userID int64) bool {
+// HasLinksInBio checks if user's bio contains links
+func HasLinksInBio(ctx context.Context, bot *telego.Bot, userID int64) bool {
 	user, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: userID},
 	})
@@ -426,6 +380,7 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 		return
 	}
 
+	// Get user's linked name
 	linkedUserName := GetLinkedUserName(user)
 	linkedGroupName := groupInfo.GetLinkedGroupName()
 	if linkedGroupName == "" {
@@ -433,18 +388,26 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 		return
 	}
 
-	// Create HTML formatted message for admin
-	message := fmt.Sprintf("⚠️ <b>安全提醒</b> [%s]\n"+
-		"用户 %s 已被限制发送消息和媒体的权限\n"+
-		"<b>原因</b>: %s",
-		linkedGroupName, linkedUserName, reason)
+	// Get language setting
+	language := models.LangSimplifiedChinese
+	if groupInfo.Language != "" {
+		language = groupInfo.Language
+	}
+
+	// Create HTML formatted message for admin using translations
+	message := fmt.Sprintf(
+		"%s\n%s\n%s",
+		fmt.Sprintf(models.GetTranslation(language, "warning_title"), linkedGroupName),
+		fmt.Sprintf(models.GetTranslation(language, "warning_restricted"), linkedUserName),
+		fmt.Sprintf(models.GetTranslation(language, "warning_reason"), models.GetTranslation(language, reason)),
+	)
 
 	// Create unban button with callback data containing chat ID and user ID
 	unbanCallbackData := fmt.Sprintf("unban:%d:%d", groupInfo.GroupID, user.ID)
 	keyboard := [][]telego.InlineKeyboardButton{
 		{
 			{
-				Text:         "解除限制",
+				Text:         models.GetTranslation(language, "warning_unban_button"),
 				CallbackData: unbanCallbackData,
 			},
 		},
@@ -535,4 +498,85 @@ func UserCanSendMessages(ctx context.Context, bot *telego.Bot, chatID int64, use
 
 	// If not restricted, they can send messages
 	return true, nil
+}
+
+// HandleCallbackQuery processees callback query data for unban actions
+func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+	log.Printf("Full callback query object: %+v", query)
+
+	// Check if it's an unban request
+	if strings.HasPrefix(query.Data, "unban:") {
+		log.Printf("Processing unban request with data: %s", query.Data)
+		// Extract chat ID and user ID from callback data
+		parts := strings.Split(query.Data, ":")
+		if len(parts) != 3 {
+			return nil
+		}
+
+		chatID, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			log.Printf("Error parsing chat ID: %v", err)
+			return nil
+		}
+
+		userID, err := strconv.ParseInt(parts[2], 10, 64)
+		if err != nil {
+			log.Printf("Error parsing user ID: %v", err)
+			return nil
+		}
+
+		// Get group information for language settings
+		groupInfo := GetGroupInfo(ctx.Context(), bot, chatID)
+		language := models.LangSimplifiedChinese
+		if groupInfo != nil && groupInfo.Language != "" {
+			language = groupInfo.Language
+		}
+
+		// Unban the user
+		UnrestrictUser(ctx.Context(), bot, chatID, userID)
+
+		// Get user information
+		userInfo, err := bot.GetChat(ctx.Context(), &telego.GetChatParams{
+			ChatID: telego.ChatID{ID: userID},
+		})
+		if err != nil {
+			log.Printf("Error getting user info: %v", err)
+			return nil
+		}
+
+		userName := userInfo.FirstName
+		if userInfo.LastName != "" {
+			userName += " " + userInfo.LastName
+		}
+
+		// Create user link
+		userLink := fmt.Sprintf("tg://user?id=%d", userID)
+		linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, userName)
+
+		// Update the message with translated text
+		messageText := fmt.Sprintf(models.GetTranslation(language, "warning_unbanned_message"), linkedUserName)
+
+		// Check if we have a message to edit
+		if query.Message != nil {
+			// Access message fields correctly for MaybeInaccessibleMessage type
+			msgChatID := query.Message.GetChat().ID
+			messageID := query.Message.GetMessageID()
+
+			bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+				ChatID:      telego.ChatID{ID: msgChatID},
+				MessageID:   messageID,
+				Text:        messageText,
+				ParseMode:   "HTML",
+				ReplyMarkup: nil, // Remove the button
+			})
+		}
+
+		// Answer the callback query with translated text
+		bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            models.GetTranslation(language, "warning_user_unbanned"),
+		})
+	}
+
+	return nil
 }

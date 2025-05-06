@@ -9,6 +9,7 @@ import (
 	th "github.com/mymmrac/telego/telegohandler"
 
 	"tg-antispam/internal/config"
+	"tg-antispam/internal/models"
 )
 
 // BotService represents the Telegram bot service
@@ -47,6 +48,9 @@ func Initialize(ctx context.Context, cfg *config.Config) (*BotService, *WebhookS
 	}
 	log.Printf("Authorized on account %s", botUser.Username)
 
+	// Set bot commands for menu in different languages
+	setLocalizedCommands(ctx, bot)
+
 	// Delete any existing webhook
 	err = bot.DeleteWebhook(ctx, &telego.DeleteWebhookParams{})
 	if err != nil {
@@ -66,4 +70,68 @@ func Initialize(ctx context.Context, cfg *config.Config) (*BotService, *WebhookS
 		Bot:     bot,
 		Handler: bh,
 	}, server, nil
+}
+
+// setLocalizedCommands sets bot commands in different languages
+func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
+	// Define command list
+	commandKeys := []struct {
+		Command string
+		DescKey string
+	}{
+		{Command: "help", DescKey: "cmd_desc_help"},
+		{Command: "settings", DescKey: "cmd_desc_settings"},
+		{Command: "toggle_premium", DescKey: "cmd_desc_toggle_premium"},
+		{Command: "toggle_cas", DescKey: "cmd_desc_toggle_cas"},
+		{Command: "toggle_random_username", DescKey: "cmd_desc_toggle_random_username"},
+		{Command: "toggle_emoji_name", DescKey: "cmd_desc_toggle_emoji_name"},
+		{Command: "toggle_bio_link", DescKey: "cmd_desc_toggle_bio_link"},
+		{Command: "toggle_notifications", DescKey: "cmd_desc_toggle_notifications"},
+		{Command: "language", DescKey: "cmd_desc_language"},
+	}
+
+	// Map of language codes to Telegram language codes
+	langCodes := map[string]string{
+		models.LangEnglish:            "en",
+		models.LangSimplifiedChinese:  "zh",
+		models.LangTraditionalChinese: "zh-hant",
+	}
+
+	// Set commands for each supported language
+	for lang, telegramLang := range langCodes {
+		var commands []telego.BotCommand
+
+		for _, cmd := range commandKeys {
+			commands = append(commands, telego.BotCommand{
+				Command:     cmd.Command,
+				Description: models.GetTranslation(lang, cmd.DescKey),
+			})
+		}
+
+		err := bot.SetMyCommands(ctx, &telego.SetMyCommandsParams{
+			Commands:     commands,
+			LanguageCode: telegramLang,
+		})
+
+		if err != nil {
+			log.Printf("Warning: Failed to set bot commands for %s: %v", lang, err)
+		}
+	}
+
+	// Set default commands (without language code) using Simplified Chinese
+	var defaultCommands []telego.BotCommand
+	for _, cmd := range commandKeys {
+		defaultCommands = append(defaultCommands, telego.BotCommand{
+			Command:     cmd.Command,
+			Description: models.GetTranslation(models.LangSimplifiedChinese, cmd.DescKey),
+		})
+	}
+
+	err := bot.SetMyCommands(ctx, &telego.SetMyCommandsParams{
+		Commands: defaultCommands,
+	})
+
+	if err != nil {
+		log.Printf("Warning: Failed to set default bot commands: %v", err)
+	}
 }
