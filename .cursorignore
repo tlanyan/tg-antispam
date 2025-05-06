@@ -13,8 +13,6 @@
 # Environment variables
 .env
 
-# Executable
-tg-antispam
 
 .DS_Store
 
@@ -24,4 +22,6 @@ tg-antispam
 
 .idea
 
-/build
+build
+
+.gitignore

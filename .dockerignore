@@ -2,9 +2,6 @@
 .git
 .gitignore
 
-# Build artifacts
-tg-antispam
-
 # Environment files
 .env
 
@@ -17,4 +14,4 @@ tg-antispam
 # Documentation
 README.md
 
-/build
+build

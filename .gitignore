@@ -13,17 +13,15 @@
 # Environment variables
 .env
 
-# Executable
-tg-antispam
 
 .DS_Store
 
-.swp
+*.swp
 
 .vscode
 
 .idea
 
-/build
+build
 
 /docs
