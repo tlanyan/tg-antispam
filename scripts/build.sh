@@ -5,14 +5,16 @@ set -e
 BASE_DIR=$(realpath $(dirname $0)/..)
 
 # Build directory
-BUILD_DIR="build"
+BUILD_DIR="$BASE_DIR/build"
 
 # Create build directory if not exists
 mkdir -p $BUILD_DIR
 
+cd $BASE_DIR
+
 # Build the binary
 echo "Building tg-antispam..."
-go build -o $BUILD_DIR/tg-antispam $BASE_DIR/cmd/tg-antispam
+go build -o $BUILD_DIR/tg-antispam ./cmd/tg-antispam
 
 # Copy configuration files
 echo "Copying configuration files..."
