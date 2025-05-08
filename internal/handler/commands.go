@@ -302,6 +302,7 @@ func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message,
 %s
 %s
 %s
+
 %s
 %s
 %s
@@ -324,11 +325,11 @@ func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message,
 		models.GetTranslation(language, "settings_commands"),
 		models.GetTranslation(language, "settings_cmd_premium"),
 		models.GetTranslation(language, "settings_cmd_cas"),
-		models.GetTranslation(language, "settings_cmd_notifications"),
-		models.GetTranslation(language, "settings_cmd_language"),
 		models.GetTranslation(language, "settings_cmd_random_username"),
 		models.GetTranslation(language, "settings_cmd_emoji_name"),
 		models.GetTranslation(language, "settings_cmd_bio_link"),
+		models.GetTranslation(language, "settings_cmd_notifications"),
+		models.GetTranslation(language, "settings_cmd_language"),
 	)
 
 	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
@@ -714,6 +715,35 @@ func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message
 				Text:   models.GetTranslation(language, "no_admin_groups"),
 			})
 			return err
+		}
+
+		// If user is admin in exactly one group, skip selection and execute action directly
+		if len(adminGroups) == 1 {
+			group := adminGroups[0]
+			if group.Language != "" {
+				language = group.Language
+			}
+
+			switch action {
+			case "settings":
+				return showGroupSettings(ctx, bot, message, group.GroupID, language)
+			case "toggle_premium":
+				return togglePremiumBanning(ctx, bot, group.GroupID, message.Chat.ID, language)
+			case "toggle_cas":
+				return toggleCasVerification(ctx, bot, group.GroupID, message.Chat.ID, language)
+			case "toggle_random_username":
+				return toggleRandomUsername(ctx, bot, group.GroupID, message.Chat.ID, language)
+			case "toggle_emoji_name":
+				return toggleEmojiName(ctx, bot, group.GroupID, message.Chat.ID, language)
+			case "toggle_bio_link":
+				return toggleBioLink(ctx, bot, group.GroupID, message.Chat.ID, language)
+			case "toggle_notifications":
+				return toggleNotifications(ctx, bot, group.GroupID, message.Chat.ID, language)
+			case "language":
+				return showLanguageOptions(ctx, bot, group.GroupID, message.Chat.ID, language)
+			default:
+				return fmt.Errorf("unknown action: %s", action)
+			}
 		}
 
 		// Create keyboard with group options
