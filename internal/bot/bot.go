@@ -3,12 +3,12 @@ package bot
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
 
 	"tg-antispam/internal/config"
+	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 )
 
@@ -46,7 +46,7 @@ func Initialize(ctx context.Context, cfg *config.Config) (*BotService, *WebhookS
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get bot info: %w", err)
 	}
-	log.Printf("Authorized on account %s", botUser.Username)
+	logger.Infof("Authorized on account %s", botUser.Username)
 
 	// Set bot commands for menu in different languages
 	setLocalizedCommands(ctx, bot)
@@ -114,7 +114,7 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 		})
 
 		if err != nil {
-			log.Printf("Warning: Failed to set bot commands for %s: %v", lang, err)
+			logger.Infof("Warning: Failed to set bot commands for %s: %v", lang, err)
 		}
 	}
 
@@ -132,6 +132,6 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 	})
 
 	if err != nil {
-		log.Printf("Warning: Failed to set default bot commands: %v", err)
+		logger.Infof("Warning: Failed to set default bot commands: %v", err)
 	}
 }

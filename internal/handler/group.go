@@ -3,8 +3,8 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log"
 
+	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/storage"
 
@@ -21,22 +21,22 @@ func InitGroupRepository() {
 	if storage.DB != nil {
 		groupRepository = storage.NewGroupRepository(storage.DB)
 		if err := groupRepository.MigrateTable(); err != nil {
-			log.Printf("Error migrating GroupInfo table: %v", err)
+			logger.Warningf("Error migrating GroupInfo table: %v", err)
 		}
 		// Load existing groups from the database
 		if err := storage.InitializeGroups(groupInfoManager); err != nil {
-			log.Printf("Error loading groups from database: %v", err)
+			logger.Warningf("Error loading groups from database: %v", err)
 		}
 	}
 }
 
 func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.GroupInfo {
-	log.Printf("GetGroupInfo called for chatID: %d", chatID)
+	logger.Infof("GetGroupInfo called for chatID: %d", chatID)
 
 	// First check the in-memory cache
 	groupInfo := groupInfoManager.GetGroupInfo(chatID)
 	if groupInfo != nil {
-		log.Printf("Found group info in cache for chatID: %d", chatID)
+		logger.Infof("Found group info in cache for chatID: %d", chatID)
 		return groupInfo
 	}
 
@@ -44,9 +44,9 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 	if groupRepository != nil {
 		dbGroupInfo, err := groupRepository.GetGroupInfo(chatID)
 		if err != nil {
-			log.Printf("Error fetching group info from database: %v", err)
+			logger.Warningf("Error fetching group info from database: %v", err)
 		} else if dbGroupInfo != nil {
-			log.Printf("Found group info in database for chatID: %d", chatID)
+			logger.Infof("Found group info in database for chatID: %d", chatID)
 			groupInfo = dbGroupInfo
 			// Add to cache
 			groupInfoManager.AddGroupInfo(groupInfo)
@@ -55,7 +55,7 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 	}
 
 	// If still not found, create a new one with default values
-	log.Printf("Creating new group info for chatID: %d", chatID)
+	logger.Infof("Creating new group info for chatID: %d", chatID)
 	groupInfo = &models.GroupInfo{
 		GroupID:            chatID,
 		IsAdmin:            false,
@@ -75,7 +75,7 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 	})
 
 	if err != nil {
-		log.Printf("Error getting chat info from Telegram: %v", err)
+		logger.Warningf("Error getting chat info from Telegram: %v", err)
 		// Still return the default group info
 		return groupInfo
 	}
@@ -99,7 +99,7 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 
 	// Try to check admin status
 	groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(ctx, bot, chatID)
-	log.Printf("Group info created: %+v", groupInfo)
+	logger.Infof("Group info created: %+v", groupInfo)
 
 	// Save to cache
 	groupInfoManager.AddGroupInfo(groupInfo)
@@ -107,7 +107,7 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 	// Save to database if enabled
 	if groupRepository != nil {
 		if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
-			log.Printf("Error saving group info to database: %v", err)
+			logger.Warningf("Error saving group info to database: %v", err)
 		}
 	}
 
@@ -122,7 +122,7 @@ func UpdateGroupInfo(groupInfo *models.GroupInfo) {
 	// Update database if enabled
 	if groupRepository != nil {
 		if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
-			log.Printf("Error updating group info in database: %v", err)
+			logger.Warningf("Error updating group info in database: %v", err)
 		}
 	}
 }
@@ -131,7 +131,7 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 	// Need a bot instance to make API calls
 	newBot, err := telego.NewBot(globalConfig.Bot.Token)
 	if err != nil {
-		log.Printf("Error creating temporary bot for admin check: %v", err)
+		logger.Warningf("Error creating temporary bot for admin check: %v", err)
 		return 0, false
 	}
 	defer newBot.Close(ctx)
@@ -141,7 +141,7 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
-		log.Printf("Error getting chat administrators: %v", err)
+		logger.Warningf("Error getting chat administrators: %v", err)
 		return 0, false
 	}
 
@@ -192,7 +192,7 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 		return candidateAdmins[0].User.ID, true
 	}
 
-	log.Printf("Could not find bot promoter in chat %d", chatID)
+	logger.Warningf("Could not find bot promoter in chat %d", chatID)
 	return 0, false
 }
 
@@ -203,7 +203,7 @@ func GetGroupName(ctx context.Context, bot *telego.Bot, chatID int64) (string, s
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
-		log.Printf("Error getting chat info: %v", err)
+		logger.Warningf("Error getting chat info: %v", err)
 		return "", ""
 	}
 

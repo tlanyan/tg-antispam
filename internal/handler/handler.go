@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	th "github.com/mymmrac/telego/telegohandler"
 
 	"tg-antispam/internal/config"
+	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 )
 
@@ -54,10 +54,10 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 
 		groupInfo := GetGroupInfo(ctx, bot, message.Chat.ID)
 		if !groupInfo.IsAdmin {
-			log.Printf("bot is not an admin for chat ID: %d", message.Chat.ID)
+			logger.Infof("bot is not an admin for chat ID: %d", message.Chat.ID)
 			return nil
 		}
-		log.Printf("Processing message: %+v", message)
+		logger.Infof("Processing message: %+v", message)
 
 		// Use database configuration if available
 		useCAS := groupInfo.EnableCAS
@@ -87,18 +87,18 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	bh.Handle(func(ctx *th.Context, update telego.Update) error {
 		// Process ChatMember updates (when users join chat or change status)
 		if update.ChatMember != nil {
-			log.Printf("Chat member update: %+v", update.ChatMember)
+			logger.Infof("Chat member update: %+v", update.ChatMember)
 			chatId := update.ChatMember.Chat.ID
 			groupInfo := GetGroupInfo(ctx, bot, chatId)
 
 			newChatMember := update.ChatMember.NewChatMember
-			log.Printf("new Chat member: %+v", newChatMember)
+			logger.Infof("new Chat member: %+v", newChatMember)
 
 			fromUser := update.ChatMember.From
 
 			// Skip updates related to the bot itself
 			if fromUser.ID == botID {
-				log.Printf("Skipping chat member update from the bot itself")
+				logger.Infof("Skipping chat member update from the bot itself")
 				return nil
 			}
 
@@ -107,7 +107,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				// Check if the bot's status was changed to admin
 				if newChatMember.MemberStatus() == telego.MemberStatusAdministrator {
 					// Record the user who promoted the bot to admin
-					log.Printf("Bot was promoted to admin in chat %d by user %d", chatId, fromUser.ID)
+					logger.Infof("Bot was promoted to admin in chat %d by user %d", chatId, fromUser.ID)
 					groupInfo.IsAdmin = true
 					groupInfo.AdminID = fromUser.ID
 					// Update the group info
@@ -121,7 +121,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 			}
 
 			if !groupInfo.IsAdmin {
-				log.Printf("Bot not and admin for chat ID: %d", chatId)
+				logger.Infof("Bot not and admin for chat ID: %d", chatId)
 				return nil
 			}
 
@@ -129,14 +129,14 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 			if newChatMember.MemberIsMember() {
 				// Skip bots
 				if user.IsBot {
-					log.Printf("Skipping bot: %s", user.FirstName)
+					logger.Infof("Skipping bot: %s", user.FirstName)
 					return nil
 				}
 
 				// 首次入群，等待入群机器人处理
 				// @TODO: 需要优化，如果没有其它机器人，则需要处理
 				if !fromUser.IsBot {
-					log.Printf("Skipping first time join: %s", user.FirstName)
+					logger.Infof("Skipping first time join: %s", user.FirstName)
 					return nil
 				}
 
@@ -155,12 +155,12 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				// Check if user has permission to send messages first
 				hasPermission, err := UserCanSendMessages(ctx.Context(), bot, chatId, user.ID)
 				if err != nil {
-					log.Printf("Error checking user permissions: %v", err)
+					logger.Infof("Error checking user permissions: %v", err)
 					return nil
 				}
 
 				if !hasPermission {
-					log.Printf("User %s is already restricted, skipping", user.FirstName)
+					logger.Infof("User %s is already restricted, skipping", user.FirstName)
 					return nil
 				}
 
@@ -171,7 +171,7 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 				}
 
 				if shouldRestrict {
-					log.Printf("Restricting user: %s, reason: %s", user.FirstName, reason)
+					logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
 					RestrictUser(ctx.Context(), bot, chatId, user.ID)
 					// Send warning only if notifications are enabled
 					if groupInfo.EnableNotification {
@@ -237,14 +237,14 @@ func CasRequest(userID int64) (bool, string) {
 	// Make the request
 	resp, err := client.Get(apiURL)
 	if err != nil {
-		log.Printf("Error making CAS request: %v", err)
+		logger.Infof("Error making CAS request: %v", err)
 		return false, ""
 	}
 	defer resp.Body.Close()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("CAS API returned non-OK status: %d", resp.StatusCode)
+		logger.Infof("CAS API returned non-OK status: %d", resp.StatusCode)
 		return false, ""
 	}
 
@@ -258,11 +258,11 @@ func CasRequest(userID int64) (bool, string) {
 
 	CasRecords.Add(userID)
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		log.Printf("Error decoding CAS response: %v", err)
+		logger.Infof("Error decoding CAS response: %v", err)
 		return false, ""
 	}
 
-	log.Printf("CAS response: %+v", result)
+	logger.Infof("CAS response: %+v", result)
 	// Check if user is in CAS database
 	if result.Ok && result.Result.Offenses > 0 {
 		return true, "reason_cas_blacklisted"
@@ -278,7 +278,7 @@ func HasLinksInBio(ctx context.Context, bot *telego.Bot, userID int64) bool {
 	})
 
 	if err != nil {
-		log.Printf("Error getting user info: %v", err)
+		logger.Infof("Error getting user info: %v", err)
 		return false
 	}
 
@@ -348,9 +348,9 @@ func RestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int
 
 	err := bot.RestrictChatMember(ctx, restrictParams)
 	if err != nil {
-		log.Printf("Error restricting user: %v", err)
+		logger.Infof("Error restricting user: %v", err)
 	} else {
-		log.Printf("Successfully restricted user %d in chat %d", userID, chatID)
+		logger.Infof("Successfully restricted user %d in chat %d", userID, chatID)
 	}
 }
 
@@ -376,7 +376,7 @@ func GetLinkedUserName(user telego.User) string {
 // SendWarning sends a warning message about the restricted user
 func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupInfo, user telego.User, reason string) {
 	if groupInfo.AdminID <= 0 {
-		log.Printf("Admin ID is not set, do not send warning")
+		logger.Infof("Admin ID is not set, do not send warning")
 		return
 	}
 
@@ -384,7 +384,7 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 	linkedUserName := GetLinkedUserName(user)
 	linkedGroupName := groupInfo.GetLinkedGroupName()
 	if linkedGroupName == "" {
-		log.Printf("failed to get Group name, do not send warning")
+		logger.Infof("failed to get Group name, do not send warning")
 		return
 	}
 
@@ -426,10 +426,10 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 
 	_, err := bot.SendMessage(ctx, &adminMessageParams)
 	if err != nil {
-		log.Printf("Error sending message to admin: %v", err)
+		logger.Infof("Error sending message to admin: %v", err)
 		groupInfo.AdminID = -1
 	} else {
-		log.Printf("Successfully sent restriction notice to admin for user %s", linkedUserName)
+		logger.Infof("Successfully sent restriction notice to admin for user %s", linkedUserName)
 	}
 }
 
@@ -462,15 +462,15 @@ func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID i
 
 	err := bot.RestrictChatMember(ctx, restrictParams)
 	if err != nil {
-		log.Printf("Error unrestricting user: %v", err)
+		logger.Infof("Error unrestricting user: %v", err)
 	} else {
-		log.Printf("Successfully unrestricted user %d in chat %d", userID, chatID)
+		logger.Infof("Successfully unrestricted user %d in chat %d", userID, chatID)
 	}
 
 	// Remove from CAS cache if exists
 	if CasRecords.Contains(userID) {
 		CasRecords.Remove(userID)
-		log.Printf("Removed user %d from CAS cache", userID)
+		logger.Infof("Removed user %d from CAS cache", userID)
 	}
 }
 
@@ -502,7 +502,7 @@ func UserCanSendMessages(ctx context.Context, bot *telego.Bot, chatID int64, use
 
 // HandleCallbackQuery processees callback query data for unban actions
 func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
-	log.Printf("Full callback query object: %+v", query)
+	logger.Infof("Full callback query object: %+v", query)
 
 	// Pass group_ callbacks to the handler in commands.go
 	if strings.HasPrefix(query.Data, "group_") {
@@ -530,13 +530,13 @@ func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.Callback
 
 		chatID, err := strconv.ParseInt(parts[1], 10, 64)
 		if err != nil {
-			log.Printf("Error parsing chat ID: %v", err)
+			logger.Infof("Error parsing chat ID: %v", err)
 			return nil
 		}
 
 		userID, err := strconv.ParseInt(parts[2], 10, 64)
 		if err != nil {
-			log.Printf("Error parsing user ID: %v", err)
+			logger.Infof("Error parsing user ID: %v", err)
 			return nil
 		}
 
@@ -555,7 +555,7 @@ func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.Callback
 			ChatID: telego.ChatID{ID: userID},
 		})
 		if err != nil {
-			log.Printf("Error getting user info: %v", err)
+			logger.Infof("Error getting user info: %v", err)
 			return nil
 		}
 

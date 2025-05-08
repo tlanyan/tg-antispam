@@ -1,9 +1,9 @@
 package storage
 
 import (
-	"log"
 	"time"
 
+	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 
 	"gorm.io/gorm"
@@ -114,7 +114,7 @@ func (r *GroupRepository) DeleteGroupInfoByID(id uint) error {
 // InitializeGroups loads all groups from the database into the cache
 func InitializeGroups(groupInfoManager *models.GroupInfoManager) error {
 	if DB == nil {
-		log.Printf("Database is not enabled, skipping group initialization")
+		logger.Warning("Database is not enabled, skipping group initialization")
 		return nil
 	}
 
@@ -128,6 +128,6 @@ func InitializeGroups(groupInfoManager *models.GroupInfoManager) error {
 		groupInfoManager.AddGroupInfo(group)
 	}
 
-	log.Printf("Loaded %d groups from database into cache", len(groups))
+	logger.Infof("Loaded %d groups from database into cache", len(groups))
 	return nil
 }

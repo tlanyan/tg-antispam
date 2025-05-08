@@ -3,11 +3,12 @@ package bot
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"tg-antispam/internal/logger"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -22,15 +23,15 @@ type WebhookServer struct {
 
 // Start starts the webhook server
 func (ws *WebhookServer) Start() error {
-	log.Printf("Starting HTTP server on %s", ws.server.Addr)
+	logger.Infof("Starting HTTP server on %s", ws.server.Addr)
 
 	// Determine if we should use TLS
 	if ws.certFile != "" && ws.keyFile != "" {
-		log.Printf("Using TLS with cert: %s, key: %s", ws.certFile, ws.keyFile)
+		logger.Infof("Using TLS with cert: %s, key: %s", ws.certFile, ws.keyFile)
 		return ws.server.ListenAndServeTLS(ws.certFile, ws.keyFile)
 	}
 
-	log.Printf("WARNING: Running without TLS. Make sure you have a HTTPS proxy in front of this server")
+	logger.Infof("WARNING: Running without TLS. Make sure you have a HTTPS proxy in front of this server")
 	return ws.server.ListenAndServe()
 }
 
@@ -48,7 +49,7 @@ func SetupWebhook(ctx context.Context, bot *telego.Bot, webhookPoint, listenPort
 	// Set default values
 	if listenPort == "" {
 		listenPort = "8443" // Default listen port
-		log.Printf("Using default listen port: %s", listenPort)
+		logger.Infof("Using default listen port: %s", listenPort)
 	}
 
 	// Validate HTTPS setup
@@ -65,11 +66,11 @@ func SetupWebhook(ctx context.Context, bot *telego.Bot, webhookPoint, listenPort
 	webhookPath := parsedURL.Path
 	if webhookPath == "" {
 		webhookPath = "/webhook"
-		log.Printf("No path specified in webhook endpoint, using default path: %s", webhookPath)
+		logger.Infof("No path specified in webhook endpoint, using default path: %s", webhookPath)
 	}
 
 	// Set up webhook
-	log.Printf("Setting webhook to: %s", webhookPoint)
+	logger.Infof("Setting webhook to: %s", webhookPoint)
 	setWebhookParams := &telego.SetWebhookParams{
 		URL:            webhookPoint,
 		AllowedUpdates: []string{"message", "channel_post", "chat_member", "my_chat_member", "callback_query"},
@@ -84,14 +85,14 @@ func SetupWebhook(ctx context.Context, bot *telego.Bot, webhookPoint, listenPort
 	// Get and display webhook info for debugging
 	webhookInfo, err := bot.GetWebhookInfo(ctx)
 	if err != nil {
-		log.Printf("Warning: Failed to get webhook info: %v", err)
+		logger.Infof("Warning: Failed to get webhook info: %v", err)
 	} else {
-		log.Printf("Webhook info: URL=%s, HasCustomCert=%v, PendingUpdateCount=%d",
+		logger.Infof("Webhook info: URL=%s, HasCustomCert=%v, PendingUpdateCount=%d",
 			webhookInfo.URL, webhookInfo.HasCustomCertificate, webhookInfo.PendingUpdateCount)
 		if webhookInfo.LastErrorDate > 0 {
-			log.Printf("Webhook last error: [%d] %s", webhookInfo.LastErrorDate, webhookInfo.LastErrorMessage)
+			logger.Infof("Webhook last error: [%d] %s", webhookInfo.LastErrorDate, webhookInfo.LastErrorMessage)
 		}
-		log.Printf("Allowed updates: %v", webhookInfo.AllowedUpdates)
+		logger.Infof("Allowed updates: %v", webhookInfo.AllowedUpdates)
 	}
 
 	// Create HTTP server mux
@@ -100,10 +101,10 @@ func SetupWebhook(ctx context.Context, bot *telego.Bot, webhookPoint, listenPort
 	// Add debug handler
 	if debugPath != "" {
 		mux.HandleFunc(debugPath, func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("Debug endpoint accessed: %s %s", r.Method, r.URL.Path)
+			logger.Infof("Debug endpoint accessed: %s %s", r.Method, r.URL.Path)
 
 			// Display request headers and content
-			log.Printf("Request headers: %v", r.Header)
+			logger.Infof("Request headers: %v", r.Header)
 
 			// Return detailed status information
 			webhookInfo, err := bot.GetWebhookInfo(ctx)

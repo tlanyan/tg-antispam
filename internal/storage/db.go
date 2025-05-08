@@ -2,14 +2,13 @@ package storage
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"tg-antispam/internal/config"
+	customlogger "tg-antispam/internal/logger"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var (
@@ -21,7 +20,7 @@ var (
 func Initialize(cfg *config.Config) error {
 	// Skip if database is disabled
 	if !cfg.Database.Enabled {
-		log.Printf("Database support is disabled")
+		customlogger.Warning("Database support is disabled")
 		return nil
 	}
 
@@ -34,12 +33,15 @@ func Initialize(cfg *config.Config) error {
 		cfg.Database.Charset,
 	)
 
-	log.Printf("Connecting to database: %s:%d/%s", cfg.Database.Host, cfg.Database.Port, cfg.Database.DBName)
+	customlogger.Infof("Connecting to database: %s:%d/%s", cfg.Database.Host, cfg.Database.Port, cfg.Database.DBName)
+
+	// 创建使用我们自定义logger的GORM日志适配器
+	dbLogger := NewCustomGormLogger(cfg.Logger.Level)
 
 	var err error
-	// Initialize database with logging in development mode
+	// Initialize database with our custom logger
 	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: dbLogger,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
@@ -56,7 +58,7 @@ func Initialize(cfg *config.Config) error {
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	log.Printf("Database connection established successfully")
+	customlogger.Infof("Database connection established successfully")
 	return nil
 }
 

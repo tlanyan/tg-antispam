@@ -32,8 +32,12 @@ type WebhookConfig struct {
 
 // LoggerConfig contains logging configuration
 type LoggerConfig struct {
-	Directory string            `mapstructure:"directory"`
-	Rotation  LogRotationConfig `mapstructure:"rotation"`
+	Directory  string            `mapstructure:"directory"`
+	Rotation   LogRotationConfig `mapstructure:"rotation"`
+	Timezone   string            `mapstructure:"timezone"`
+	Format     string            `mapstructure:"format"`
+	TimeFormat string            `mapstructure:"time_format"`
+	Level      string            `mapstructure:"level"`
 }
 
 // LogRotationConfig contains log rotation settings
@@ -119,6 +123,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("logger.rotation.max_backups", 30)
 	v.SetDefault("logger.rotation.max_age", 90)
 	v.SetDefault("logger.rotation.compress", true)
+	v.SetDefault("logger.timezone", "Local")
+	v.SetDefault("logger.format", "[%{level}] %{time} %{file}:%{line}: %{message}")
+	v.SetDefault("logger.time_format", "2006/01/02 15:04:05")
+	v.SetDefault("logger.level", "INFO")
 
 	// Database defaults
 	v.SetDefault("database.enabled", false)

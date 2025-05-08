@@ -64,6 +64,28 @@ logger:
   # 日志文件保存目录
   directory: "logs"
 
+  # Timezone for logs (IANA timezone database names)
+  # 日志时区 (IANA时区数据库名称)
+  # Examples: "Asia/Shanghai", "America/New_York", "Europe/London", "UTC", "Local"
+  timezone: "Local"
+
+  # Minimum log level to output
+  # 最低日志输出级别
+  # Available levels: "DEBUG", "INFO", "WARNING", "ERROR", "FATAL"
+  level: "INFO"
+
+  # Log format pattern with placeholders
+  # 日志格式模板，使用占位符
+  # Available placeholders: %{level}, %{time}, %{file}, %{line}, %{message}
+  # Example: "[%{level}] %{time} %{file}:%{line}: %{message}"
+  format: "[%{level}] %{time} %{file}:%{line}: %{message}"
+
+  # Time format for timestamp in logs
+  # 日志中时间戳的格式
+  # Uses Go's time formatting: https://golang.org/pkg/time/#Time.Format
+  # Example: "2006/01/02 15:04:05" (Year/Month/Day Hour:Minute:Second)
+  time_format: "2006/01/02 15:04:05"
+
   # Log file rotation settings
   # 日志文件轮转设置
   rotation:

@@ -3,10 +3,10 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
+	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/storage"
 
@@ -793,7 +793,7 @@ func handleGroupSelection(ctx *th.Context, bot *telego.Bot, query telego.Callbac
 	parts := strings.Split(query.Data, "_")
 	dlen := len(parts)
 	if dlen < 3 {
-		log.Printf("Invalid callback data format: %s (parts: %d)", query.Data, dlen)
+		logger.Infof("Invalid callback data format: %s (parts: %d)", query.Data, dlen)
 		return fmt.Errorf("invalid callback data format")
 	}
 
@@ -802,12 +802,12 @@ func handleGroupSelection(ctx *th.Context, bot *telego.Bot, query telego.Callbac
 		action = strings.Join(parts[1:dlen-1], "_")
 	}
 	groupIDStr := parts[dlen-1]
-	log.Printf("Processing callback - Action: %s, GroupID: %s", action, groupIDStr)
+	logger.Infof("Processing callback - Action: %s, GroupID: %s", action, groupIDStr)
 
 	// Parse the group ID
 	groupID, err := strconv.ParseInt(groupIDStr, 10, 64)
 	if err != nil {
-		log.Printf("Error parsing group ID: %v", err)
+		logger.Infof("Error parsing group ID: %v", err)
 
 		// Answer the callback to prevent the loading state
 		_ = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
@@ -819,10 +819,9 @@ func handleGroupSelection(ctx *th.Context, bot *telego.Bot, query telego.Callbac
 		return fmt.Errorf("invalid group ID: %w", err)
 	}
 
-	log.Printf("Getting group info for group ID: %d", groupID)
 	// Get group info
 	groupInfo := GetGroupInfo(ctx.Context(), bot, groupID)
-	log.Printf("Group info retrieved: %+v", groupInfo)
+	logger.Infof("Group info retrieved: %+v", groupInfo)
 
 	language := models.LangSimplifiedChinese
 	if groupInfo != nil && groupInfo.Language != "" {
@@ -847,7 +846,7 @@ func handleGroupSelection(ctx *th.Context, bot *telego.Bot, query telego.Callbac
 	// Verify the user is an admin
 	senderIsAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
 	if err != nil {
-		log.Printf("Error checking if user is admin: %v", err)
+		logger.Warningf("Error checking if user is admin: %v", err)
 
 		// Answer the callback to prevent the loading state
 		_ = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
