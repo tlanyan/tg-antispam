@@ -504,9 +504,24 @@ func UserCanSendMessages(ctx context.Context, bot *telego.Bot, chatID int64, use
 func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
 	log.Printf("Full callback query object: %+v", query)
 
+	// Pass group_ callbacks to the handler in commands.go
+	if strings.HasPrefix(query.Data, "group_") {
+		return handleGroupSelection(ctx, bot, query)
+	}
+
+	// Handle language selection callbacks
+	if strings.HasPrefix(query.Data, "lang_") {
+		language := strings.TrimPrefix(query.Data, "lang_")
+		return setLanguage(ctx, bot, query, language)
+	}
+
+	// Handle action callbacks
+	if strings.HasPrefix(query.Data, "action_") {
+		return handleActionCallback(ctx, bot, query)
+	}
+
 	// Check if it's an unban request
 	if strings.HasPrefix(query.Data, "unban:") {
-		log.Printf("Processing unban request with data: %s", query.Data)
 		// Extract chat ID and user ID from callback data
 		parts := strings.Split(query.Data, ":")
 		if len(parts) != 3 {

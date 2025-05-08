@@ -31,48 +31,83 @@ func InitGroupRepository() {
 }
 
 func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.GroupInfo {
+	log.Printf("GetGroupInfo called for chatID: %d", chatID)
+
 	// First check the in-memory cache
 	groupInfo := groupInfoManager.GetGroupInfo(chatID)
+	if groupInfo != nil {
+		log.Printf("Found group info in cache for chatID: %d", chatID)
+		return groupInfo
+	}
 
 	// If not found in cache but database is enabled, try to load it from database
-	if groupInfo == nil && groupRepository != nil {
+	if groupRepository != nil {
 		dbGroupInfo, err := groupRepository.GetGroupInfo(chatID)
 		if err != nil {
 			log.Printf("Error fetching group info from database: %v", err)
 		} else if dbGroupInfo != nil {
+			log.Printf("Found group info in database for chatID: %d", chatID)
 			groupInfo = dbGroupInfo
 			// Add to cache
 			groupInfoManager.AddGroupInfo(groupInfo)
+			return groupInfo
 		}
 	}
 
 	// If still not found, create a new one with default values
-	if groupInfo == nil {
-		groupInfo = &models.GroupInfo{
-			GroupID:            chatID,
-			IsAdmin:            false,
-			AdminID:            -1,
-			EnableNotification: true,
-			BanPremium:         globalConfig.Antispam.BanPremium,
-			BanEmojiName:       globalConfig.Antispam.BanEmojiName,
-			BanRandomUsername:  globalConfig.Antispam.BanRandomUsername,
-			BanBioLink:         globalConfig.Antispam.BanBioLink,
-			EnableCAS:          globalConfig.Antispam.UseCAS,
-			Language:           "zh_CN",
+	log.Printf("Creating new group info for chatID: %d", chatID)
+	groupInfo = &models.GroupInfo{
+		GroupID:            chatID,
+		IsAdmin:            false,
+		AdminID:            -1,
+		EnableNotification: true,
+		BanPremium:         globalConfig.Antispam.BanPremium,
+		BanEmojiName:       globalConfig.Antispam.BanEmojiName,
+		BanRandomUsername:  globalConfig.Antispam.BanRandomUsername,
+		BanBioLink:         globalConfig.Antispam.BanBioLink,
+		EnableCAS:          globalConfig.Antispam.UseCAS,
+		Language:           "zh_CN",
+	}
+
+	// Try to get group information from Telegram
+	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
+		ChatID: telego.ChatID{ID: chatID},
+	})
+
+	if err != nil {
+		log.Printf("Error getting chat info from Telegram: %v", err)
+		// Still return the default group info
+		return groupInfo
+	}
+
+	// Update group name
+	groupInfo.GroupName = chatInfo.Title
+
+	// Set group link if available
+	if chatInfo.Username != "" {
+		groupInfo.GroupLink = fmt.Sprintf("https://t.me/%s", chatInfo.Username)
+	} else {
+		// For private groups, convert the chat ID to work with t.me links
+		// Telegram requires removing the -100 prefix from supergroup IDs for links
+		groupIDForLink := chatID
+		if groupIDForLink < -1000000000000 {
+			// Extract the actual ID from the negative number (skip the -100 prefix)
+			groupIDForLink = -groupIDForLink - 1000000000000
 		}
+		groupInfo.GroupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
+	}
 
-		groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(ctx, bot, chatID)
-		groupInfo.GroupName, groupInfo.GroupLink = GetGroupName(ctx, bot, chatID)
-		log.Printf("Group info: %+v", groupInfo)
+	// Try to check admin status
+	groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(ctx, bot, chatID)
+	log.Printf("Group info created: %+v", groupInfo)
 
-		// Save to cache
-		groupInfoManager.AddGroupInfo(groupInfo)
+	// Save to cache
+	groupInfoManager.AddGroupInfo(groupInfo)
 
-		// Save to database if enabled
-		if groupRepository != nil {
-			if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
-				log.Printf("Error saving group info to database: %v", err)
-			}
+	// Save to database if enabled
+	if groupRepository != nil {
+		if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
+			log.Printf("Error saving group info to database: %v", err)
 		}
 	}
 

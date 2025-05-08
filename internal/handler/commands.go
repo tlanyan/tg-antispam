@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -17,74 +18,39 @@ import (
 func RegisterCommands(bh *th.BotHandler, bot *telego.Bot) {
 	// Help command
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		if message.Text != "" && message.Text == "/help" {
+		if message.Text == "/help" {
 			return sendHelpMessage(ctx, bot, message)
 		}
-		return nil
-	})
-
-	// Settings command
-	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		if message.Text != "" && message.Text == "/settings" {
+		if message.Text == "/settings" {
 			return handleSettingsCommand(ctx, bot, message)
 		}
-		return nil
-	})
 
-	// Toggle premium command
-	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		if message.Text != "" && message.Text == "/toggle_premium" {
+		if message.Text == "/toggle_premium" {
 			return handleTogglePremiumCommand(ctx, bot, message)
 		}
-		return nil
-	})
 
-	// Toggle CAS command
-	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		if message.Text != "" && message.Text == "/toggle_cas" {
+		if message.Text == "/toggle_cas" {
 			return handleToggleCasCommand(ctx, bot, message)
 		}
-		return nil
-	})
 
-	// Toggle notifications command
-	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		if message.Text != "" && message.Text == "/toggle_notifications" {
+		if message.Text == "/toggle_random_username" {
+			return handleToggleRandomUsernameCommand(ctx, bot, message)
+		}
+
+		if message.Text == "/toggle_emoji_name" {
+			return handleToggleEmojiNameCommand(ctx, bot, message)
+		}
+
+		if message.Text == "/toggle_bio_link" {
+			return handleToggleBioLinkCommand(ctx, bot, message)
+		}
+
+		if message.Text == "/toggle_notifications" {
 			return handleToggleNotificationsCommand(ctx, bot, message)
 		}
-		return nil
-	})
 
-	// Language command
-	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		if message.Text != "" && message.Text == "/language" {
+		if message.Text == "/language" {
 			return handleLanguageCommand(ctx, bot, message)
-		}
-		return nil
-	})
-
-	// Handle language selection callbacks
-	bh.HandleCallbackQuery(func(ctx *th.Context, query telego.CallbackQuery) error {
-		prefix := "lang_"
-		if strings.HasPrefix(query.Data, prefix) {
-			language := strings.TrimPrefix(query.Data, prefix)
-			return setLanguage(ctx, bot, query, language)
-		}
-		return nil
-	})
-
-	// Handle group selection callbacks
-	bh.HandleCallbackQuery(func(ctx *th.Context, query telego.CallbackQuery) error {
-		if strings.HasPrefix(query.Data, "group_") {
-			return handleGroupSelection(ctx, bot, query)
-		}
-		return nil
-	})
-
-	// Handle action callbacks
-	bh.HandleCallbackQuery(func(ctx *th.Context, query telego.CallbackQuery) error {
-		if strings.HasPrefix(query.Data, "action_") {
-			return handleActionCallback(ctx, bot, query)
 		}
 		return nil
 	})
@@ -327,9 +293,7 @@ func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message,
 
 	msgText := fmt.Sprintf(
 		`<b>%s</b>
-
 <b>%s</b> %s
-
 <b>%s</b>
 %s
 %s
@@ -342,14 +306,17 @@ func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message,
 %s
 %s
 %s
+%s
+%s
+%s
 %s`,
-		fmt.Sprintf(models.GetTranslation(language, "settings_title"), groupInfo.GroupName),
+		fmt.Sprintf(models.GetTranslation(language, "settings_title"), groupInfo.GetLinkedGroupName()),
 		models.GetTranslation(language, "settings_bot_status"),
 		models.GetTranslation(language, "settings_active"),
 		models.GetTranslation(language, "settings_current"),
 		fmt.Sprintf(models.GetTranslation(language, "settings_ban_premium"), banPremiumStatus),
 		fmt.Sprintf(models.GetTranslation(language, "settings_cas"), casStatus),
-		fmt.Sprintf(models.GetTranslation(language, "settings_random_name"), randomUsernameStatus),
+		fmt.Sprintf(models.GetTranslation(language, "settings_random_username"), randomUsernameStatus),
 		fmt.Sprintf(models.GetTranslation(language, "settings_emoji_name"), emojiNameStatus),
 		fmt.Sprintf(models.GetTranslation(language, "settings_bio_link"), bioLinkStatus),
 		fmt.Sprintf(models.GetTranslation(language, "settings_notifications"), notificationStatus),
@@ -359,6 +326,9 @@ func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message,
 		models.GetTranslation(language, "settings_cmd_cas"),
 		models.GetTranslation(language, "settings_cmd_notifications"),
 		models.GetTranslation(language, "settings_cmd_language"),
+		models.GetTranslation(language, "settings_cmd_random_username"),
+		models.GetTranslation(language, "settings_cmd_emoji_name"),
+		models.GetTranslation(language, "settings_cmd_bio_link"),
 	)
 
 	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
@@ -382,9 +352,9 @@ func togglePremiumBanning(ctx *th.Context, bot *telego.Bot, chatID int64, messag
 	UpdateGroupInfo(groupInfo)
 
 	// Get status string
-	status := models.GetTranslation(language, "disabled_text")
+	status := models.GetTranslation(language, "disabled")
 	if groupInfo.BanPremium {
-		status = models.GetTranslation(language, "enabled_text")
+		status = models.GetTranslation(language, "enabled")
 	}
 
 	// Create confirmation message
@@ -412,9 +382,9 @@ func toggleCasVerification(ctx *th.Context, bot *telego.Bot, chatID int64, messa
 	UpdateGroupInfo(groupInfo)
 
 	// Get status string
-	status := models.GetTranslation(language, "disabled_text")
+	status := models.GetTranslation(language, "disabled")
 	if groupInfo.EnableCAS {
-		status = models.GetTranslation(language, "enabled_text")
+		status = models.GetTranslation(language, "enabled")
 	}
 
 	// Create confirmation message
@@ -430,7 +400,7 @@ func toggleCasVerification(ctx *th.Context, bot *telego.Bot, chatID int64, messa
 	return err
 }
 
-// toggleRandomUsername toggles random username check
+// toggleRandomUsername toggles random username banning
 func toggleRandomUsername(ctx *th.Context, bot *telego.Bot, chatID int64, messageID int64, language string) error {
 	// 获取群组设置
 	groupInfo := GetGroupInfo(ctx.Context(), bot, chatID)
@@ -442,9 +412,9 @@ func toggleRandomUsername(ctx *th.Context, bot *telego.Bot, chatID int64, messag
 	UpdateGroupInfo(groupInfo)
 
 	// Get status string
-	status := models.GetTranslation(language, "disabled_text")
+	status := models.GetTranslation(language, "disabled")
 	if groupInfo.BanRandomUsername {
-		status = models.GetTranslation(language, "enabled_text")
+		status = models.GetTranslation(language, "enabled")
 	}
 
 	// Create confirmation message
@@ -460,7 +430,7 @@ func toggleRandomUsername(ctx *th.Context, bot *telego.Bot, chatID int64, messag
 	return err
 }
 
-// toggleEmojiUsername toggles emoji username check
+// toggleEmojiName toggles emoji name banning
 func toggleEmojiName(ctx *th.Context, bot *telego.Bot, chatID int64, messageID int64, language string) error {
 	// 获取群组设置
 	groupInfo := GetGroupInfo(ctx.Context(), bot, chatID)
@@ -472,9 +442,9 @@ func toggleEmojiName(ctx *th.Context, bot *telego.Bot, chatID int64, messageID i
 	UpdateGroupInfo(groupInfo)
 
 	// Get status string
-	status := models.GetTranslation(language, "disabled_text")
+	status := models.GetTranslation(language, "disabled")
 	if groupInfo.BanEmojiName {
-		status = models.GetTranslation(language, "enabled_text")
+		status = models.GetTranslation(language, "enabled")
 	}
 
 	// Create confirmation message
@@ -490,7 +460,7 @@ func toggleEmojiName(ctx *th.Context, bot *telego.Bot, chatID int64, messageID i
 	return err
 }
 
-// toggleBioLink toggles bio link check
+// toggleBioLink toggles bio link banning
 func toggleBioLink(ctx *th.Context, bot *telego.Bot, chatID int64, messageID int64, language string) error {
 	// 获取群组设置
 	groupInfo := GetGroupInfo(ctx.Context(), bot, chatID)
@@ -502,9 +472,9 @@ func toggleBioLink(ctx *th.Context, bot *telego.Bot, chatID int64, messageID int
 	UpdateGroupInfo(groupInfo)
 
 	// Get status string
-	status := models.GetTranslation(language, "disabled_text")
+	status := models.GetTranslation(language, "disabled")
 	if groupInfo.BanBioLink {
-		status = models.GetTranslation(language, "enabled_text")
+		status = models.GetTranslation(language, "enabled")
 	}
 
 	// Create confirmation message
@@ -532,9 +502,9 @@ func toggleNotifications(ctx *th.Context, bot *telego.Bot, chatID int64, message
 	UpdateGroupInfo(groupInfo)
 
 	// Get status string
-	status := models.GetTranslation(language, "disabled_text")
+	status := models.GetTranslation(language, "disabled")
 	if groupInfo.EnableNotification {
-		status = models.GetTranslation(language, "enabled_text")
+		status = models.GetTranslation(language, "enabled")
 	}
 
 	// Create confirmation message
@@ -615,12 +585,16 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, l
 
 	// Split the callback data to get language and chatID
 	parts := strings.Split(language, "_")
-	if len(parts) < 2 {
+	dlen := len(parts)
+	if dlen < 2 {
 		return fmt.Errorf("invalid callback data format")
 	}
 
 	lang := parts[0]
-	chatIDStr := parts[1]
+	if dlen > 2 {
+		lang = strings.Join(parts[0:dlen-1], "_")
+	}
+	chatIDStr := parts[dlen-1]
 
 	// Parse the chat ID
 	chatID, err := strconv.ParseInt(chatIDStr, 10, 64)
@@ -628,15 +602,13 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, l
 		return fmt.Errorf("invalid chat ID: %w", err)
 	}
 
-	// Safely access message fields
-	var messageID int
-	var queryChatID int64
-
-	if message, ok := query.Message.(*telego.Message); ok {
-		messageID = message.MessageID
-		queryChatID = message.Chat.ID
-	} else {
-		return fmt.Errorf("can't access message fields")
+	// Get message details
+	var message telego.Message
+	switch msg := query.Message.(type) {
+	case *telego.Message:
+		message = *msg
+	default:
+		return fmt.Errorf("can't access message details")
 	}
 
 	// Get the group info
@@ -686,8 +658,8 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, l
 
 	// Edit the message to show the selection
 	_, _ = bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
-		ChatID:    telego.ChatID{ID: queryChatID},
-		MessageID: messageID,
+		ChatID:    telego.ChatID{ID: message.Chat.ID},
+		MessageID: message.MessageID,
 		Text:      successMsg,
 	})
 
@@ -789,87 +761,118 @@ func handleGroupSelection(ctx *th.Context, bot *telego.Bot, query telego.Callbac
 
 	// Parse the callback data: group_action_groupID
 	parts := strings.Split(query.Data, "_")
-	if len(parts) != 3 {
+	dlen := len(parts)
+	if dlen < 3 {
+		log.Printf("Invalid callback data format: %s (parts: %d)", query.Data, dlen)
 		return fmt.Errorf("invalid callback data format")
 	}
 
 	action := parts[1]
-	groupIDStr := parts[2]
+	if dlen > 3 {
+		action = strings.Join(parts[1:dlen-1], "_")
+	}
+	groupIDStr := parts[dlen-1]
+	log.Printf("Processing callback - Action: %s, GroupID: %s", action, groupIDStr)
 
 	// Parse the group ID
 	groupID, err := strconv.ParseInt(groupIDStr, 10, 64)
 	if err != nil {
+		log.Printf("Error parsing group ID: %v", err)
+
+		// Answer the callback to prevent the loading state
+		_ = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            "Invalid group ID",
+			ShowAlert:       true,
+		})
+
 		return fmt.Errorf("invalid group ID: %w", err)
 	}
 
+	log.Printf("Getting group info for group ID: %d", groupID)
 	// Get group info
 	groupInfo := GetGroupInfo(ctx.Context(), bot, groupID)
+	log.Printf("Group info retrieved: %+v", groupInfo)
+
 	language := models.LangSimplifiedChinese
-	if groupInfo.Language != "" {
+	if groupInfo != nil && groupInfo.Language != "" {
 		language = groupInfo.Language
+	}
+
+	// Get message details
+	var message telego.Message
+	switch msg := query.Message.(type) {
+	case *telego.Message:
+		message = *msg
+	default:
+		// Answer the callback to prevent the loading state
+		_ = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            "Cannot access message details",
+			ShowAlert:       true,
+		})
+		return fmt.Errorf("can't access message details")
 	}
 
 	// Verify the user is an admin
 	senderIsAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
-	if err != nil || !senderIsAdmin {
+	if err != nil {
+		log.Printf("Error checking if user is admin: %v", err)
+
+		// Answer the callback to prevent the loading state
+		_ = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            models.GetTranslation(language, "group_not_found"),
+			ShowAlert:       true,
+		})
+
+		return err
+	}
+
+	if !senderIsAdmin {
 		// Answer query silently
 		_ = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
 			Text:            models.GetTranslation(language, "user_not_admin"),
 			ShowAlert:       true,
 		})
-		return err
+		return fmt.Errorf("user is not admin")
 	}
 
-	// Get the message chat ID safely
-	var messageChatID int64
-	if message, ok := query.Message.(*telego.Message); ok {
-		messageChatID = message.Chat.ID
-	} else {
-		return fmt.Errorf("can't access message chat ID")
-	}
+	// Make sure to answer the callback query to stop the loading state
+	_ = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		CallbackQueryID: query.ID,
+	})
 
 	// Process the action
 	switch action {
 	case "settings":
 		// Show settings for the selected group
-		if message, ok := query.Message.(*telego.Message); ok {
-			err = showGroupSettings(ctx, bot, *message, groupID, language)
-		} else {
-			err = fmt.Errorf("can't access message")
-		}
+		return showGroupSettings(ctx, bot, message, groupID, language)
 	case "toggle_premium":
 		// Toggle premium user banning for the group
-		return togglePremiumBanning(ctx, bot, groupID, messageChatID, language)
+		return togglePremiumBanning(ctx, bot, groupID, message.Chat.ID, language)
 	case "toggle_cas":
 		// Toggle CAS verification for the group
-		return toggleCasVerification(ctx, bot, groupID, messageChatID, language)
+		return toggleCasVerification(ctx, bot, groupID, message.Chat.ID, language)
 	case "toggle_random_username":
-		// Toggle random username check for the group
-		return toggleRandomUsername(ctx, bot, groupID, messageChatID, language)
+		// Toggle random username banning for the group
+		return toggleRandomUsername(ctx, bot, groupID, message.Chat.ID, language)
 	case "toggle_emoji_name":
-		// Toggle emoji username check for the group
-		return toggleEmojiName(ctx, bot, groupID, messageChatID, language)
+		// Toggle emoji name banning for the group
+		return toggleEmojiName(ctx, bot, groupID, message.Chat.ID, language)
 	case "toggle_bio_link":
-		// Toggle bio link check for the group
-		return toggleBioLink(ctx, bot, groupID, messageChatID, language)
-
+		// Toggle bio link banning for the group
+		return toggleBioLink(ctx, bot, groupID, message.Chat.ID, language)
 	case "toggle_notifications":
 		// Toggle admin notifications for the group
-		return toggleNotifications(ctx, bot, groupID, messageChatID, language)
+		return toggleNotifications(ctx, bot, groupID, message.Chat.ID, language)
 	case "language":
 		// Show language options for the group
-		return showLanguageOptions(ctx, bot, groupID, messageChatID, language)
+		return showLanguageOptions(ctx, bot, groupID, message.Chat.ID, language)
 	default:
-		err = fmt.Errorf("unknown action: %s", action)
+		return fmt.Errorf("unknown action: %s", action)
 	}
-
-	// Answer the callback query
-	_ = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
-		CallbackQueryID: query.ID,
-	})
-
-	return err
 }
 
 // handleGroupIDInput handles the group ID input from user
@@ -936,6 +939,15 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 	case "toggle_cas":
 		// Toggle CAS verification for the group
 		return toggleCasVerification(ctx, bot, groupID, message.Chat.ID, language)
+	case "toggle_random_username":
+		// Toggle random username banning for the group
+		return toggleRandomUsername(ctx, bot, groupID, message.Chat.ID, language)
+	case "toggle_emoji_name":
+		// Toggle emoji name banning for the group
+		return toggleEmojiName(ctx, bot, groupID, message.Chat.ID, language)
+	case "toggle_bio_link":
+		// Toggle bio link banning for the group
+		return toggleBioLink(ctx, bot, groupID, message.Chat.ID, language)
 	case "toggle_notifications":
 		// Toggle admin notifications for the group
 		return toggleNotifications(ctx, bot, groupID, message.Chat.ID, language)
@@ -1020,4 +1032,76 @@ func handleActionCallback(ctx *th.Context, bot *telego.Bot, query telego.Callbac
 	})
 
 	return err
+}
+
+// handleToggleRandomUsernameCommand handles the /toggle_random_username command
+func handleToggleRandomUsernameCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	if message.Chat.Type == "private" {
+		// In private chat, show group selection
+		return showGroupSelection(ctx, bot, message, "toggle_random_username")
+	} else {
+		// In group chat, suggest using private chat
+		language := models.LangSimplifiedChinese
+		groupInfo := GetGroupInfo(ctx.Context(), bot, message.Chat.ID)
+		if groupInfo.Language != "" {
+			language = groupInfo.Language
+		}
+
+		botUsername, _ := getBotUsername(ctx.Context(), bot)
+		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID: telego.ChatID{ID: message.Chat.ID},
+			Text: fmt.Sprintf("%s @%s",
+				models.GetTranslation(language, "please_use_private_chat"),
+				botUsername),
+		})
+		return err
+	}
+}
+
+// handleToggleEmojiNameCommand handles the /toggle_emoji_name command
+func handleToggleEmojiNameCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	if message.Chat.Type == "private" {
+		// In private chat, show group selection
+		return showGroupSelection(ctx, bot, message, "toggle_emoji_name")
+	} else {
+		// In group chat, suggest using private chat
+		language := models.LangSimplifiedChinese
+		groupInfo := GetGroupInfo(ctx.Context(), bot, message.Chat.ID)
+		if groupInfo.Language != "" {
+			language = groupInfo.Language
+		}
+
+		botUsername, _ := getBotUsername(ctx.Context(), bot)
+		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID: telego.ChatID{ID: message.Chat.ID},
+			Text: fmt.Sprintf("%s @%s",
+				models.GetTranslation(language, "please_use_private_chat"),
+				botUsername),
+		})
+		return err
+	}
+}
+
+// handleToggleBioLinkCommand handles the /toggle_bio_link command
+func handleToggleBioLinkCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	if message.Chat.Type == "private" {
+		// In private chat, show group selection
+		return showGroupSelection(ctx, bot, message, "toggle_bio_link")
+	} else {
+		// In group chat, suggest using private chat
+		language := models.LangSimplifiedChinese
+		groupInfo := GetGroupInfo(ctx.Context(), bot, message.Chat.ID)
+		if groupInfo.Language != "" {
+			language = groupInfo.Language
+		}
+
+		botUsername, _ := getBotUsername(ctx.Context(), bot)
+		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID: telego.ChatID{ID: message.Chat.ID},
+			Text: fmt.Sprintf("%s @%s",
+				models.GetTranslation(language, "please_use_private_chat"),
+				botUsername),
+		})
+		return err
+	}
 }

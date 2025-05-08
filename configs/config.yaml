@@ -89,18 +89,18 @@ antispam:
   # 是否默认限制Premium用户
   ban_premium: true
 
-  # Whether to check for random usernames
+  # Whether restrict random username by default
   # 是否默认限制随机用户名用户
   ban_random_username: true
 
-  # Whether to check for emojis in username
+  # Whether restrict emojis in username by default
   # 是否默认限制用户名中的表情符号用户
   ban_emoji_name: true
 
-  # Whether to check for suspicious links in bio
-  # 是否默认限制用户个人简介中包含可以链接用户
+  # Whether restrict suspicious links in bio by default
+  # 是否默认限制用户个人简介中包含可疑链接用户
   ban_bio_link: true
 
-  # Whether to use CAS (Combot Anti-Spam)
-  # 是否使用CAS(Combot反垃圾系统)检查
+  # Whether to use CAS (Combot Anti-Spam) by default
+  # 是否默认使用CAS(Combot反垃圾系统)检查
   use_cas: true
