@@ -18,5 +18,6 @@ CREATE TABLE IF NOT EXISTS `group_info` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_group_id` (`group_id`)
+  UNIQUE KEY `idx_group_id` (`group_id`, `admin_id`),
+  KEY `idx_admin_id` (`admin_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -131,3 +131,19 @@ func InitializeGroups(groupInfoManager *models.GroupInfoManager) error {
 	logger.Infof("Loaded %d groups from database into cache", len(groups))
 	return nil
 }
+
+// GetGroupsByAdminID retrieves all groups with the specified admin ID
+func (r *GroupRepository) GetGroupsByAdminID(adminID int64) ([]*models.GroupInfo, error) {
+	var groups []*models.GroupInfo
+	result := r.db.Where("admin_id = ?", adminID).Find(&groups)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return groups, nil
+}
+
+// DisableNotificationsForAdmin sets EnableNotification to false for all groups with the specified admin ID
+func (r *GroupRepository) DisableNotificationsForAdmin(adminID int64) error {
+	result := r.db.Model(&models.GroupInfo{}).Where("admin_id = ?", adminID).Update("enable_notification", false)
+	return result.Error
+}

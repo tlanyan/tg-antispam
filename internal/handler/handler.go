@@ -183,6 +183,53 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 		return nil
 	}, th.AnyChatMember())
 
+	// Handle MyChatMember updates (when a user changes the bot's status)
+	bh.Handle(func(ctx *th.Context, update telego.Update) error {
+		// Process MyChatMember updates (when users block/unblock the bot in private chats)
+		if update.MyChatMember != nil {
+			logger.Infof("MyChatMember update: %+v", update.MyChatMember)
+
+			// Only process private chat updates (when a user blocks/unblocks the bot)
+			if update.MyChatMember.Chat.Type == "private" {
+				userID := update.MyChatMember.From.ID
+				newStatus := update.MyChatMember.NewChatMember.MemberStatus()
+
+				// When a user blocks/stops the bot (MemberStatusLeft for left, "kicked" for blocked/stopped)
+				if newStatus == telego.MemberStatusLeft || newStatus == "kicked" {
+					logger.Infof("User %d has blocked/stopped the bot", userID)
+
+					// Disable notifications for all groups associated with this admin
+					if groupRepository != nil {
+						// Get all groups where this user is the admin
+						groups, err := groupRepository.GetGroupsByAdminID(userID)
+						if err != nil {
+							logger.Warningf("Error getting groups for admin %d: %v", userID, err)
+							return nil
+						}
+
+						logger.Infof("Found %d groups for admin %d", len(groups), userID)
+
+						// Update each group's notification setting in both cache and DB
+						for _, group := range groups {
+							// Update in memory first
+							group.EnableNotification = false
+							groupInfoManager.AddGroupInfo(group)
+
+							logger.Infof("Disabled notifications for group %d", group.GroupID)
+						}
+
+						// Update all groups in DB at once
+						err = groupRepository.DisableNotificationsForAdmin(userID)
+						if err != nil {
+							logger.Warningf("Error disabling notifications for admin %d: %v", userID, err)
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}, th.AnyMyChatMember())
+
 	// Handle callback queries for unban button
 	bh.HandleCallbackQuery(func(ctx *th.Context, query telego.CallbackQuery) error {
 		return HandleCallbackQuery(ctx, bot, query)
