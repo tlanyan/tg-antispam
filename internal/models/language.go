@@ -102,6 +102,31 @@ var Translations = map[string]Translation{
 		"reason_emoji_name":      "姓名含有表情符号",
 		"reason_bio_link":        "个人简介包含可疑链接",
 		"reason_cas_blacklisted": "用户在 CAS 黑名单中",
+
+		// Toggle action response messages
+		"premium_ban_enabled":          "已启用默认封禁Premium用户",
+		"premium_ban_disabled":         "已禁用默认封禁Premium用户",
+		"cas_enabled":                  "已启用CAS验证",
+		"cas_disabled":                 "已禁用CAS验证",
+		"random_username_ban_enabled":  "已启用随机用户名封禁",
+		"random_username_ban_disabled": "已禁用随机用户名封禁",
+		"emoji_name_ban_enabled":       "已启用姓名表情符号封禁",
+		"emoji_name_ban_disabled":      "已禁用姓名表情符号封禁",
+		"bio_link_ban_enabled":         "已启用个人简介可疑链接封禁",
+		"bio_link_ban_disabled":        "已禁用个人简介可疑链接封禁",
+		"notifications_enabled":        "已启用管理员通知",
+		"notifications_disabled":       "已禁用管理员通知",
+
+		// Other messages for action responses
+		"toggle_premium":         "切换Premium用户封禁",
+		"toggle_cas":             "切换CAS验证",
+		"toggle_random_username": "切换随机用户名封禁",
+		"toggle_emoji_name":      "切换姓名表情符号封禁",
+		"toggle_bio_link":        "切换个人简介可疑链接封禁",
+		"toggle_notifications":   "切换管理员通知",
+		"change_language":        "更改语言",
+
+		"select_language": "请选择机器人使用的语言:",
 	},
 
 	LangTraditionalChinese: {
@@ -194,6 +219,31 @@ var Translations = map[string]Translation{
 		"reason_emoji_name":      "姓名含有表情符號",
 		"reason_bio_link":        "個人簡介包含可疑連結",
 		"reason_cas_blacklisted": "用戶在 CAS 黑名單中",
+
+		// Toggle action response messages
+		"premium_ban_enabled":          "已啟用默認封禁Premium用戶",
+		"premium_ban_disabled":         "已禁用默認封禁Premium用戶",
+		"cas_enabled":                  "已啟用CAS驗證",
+		"cas_disabled":                 "已禁用CAS驗證",
+		"random_username_ban_enabled":  "已啟用隨機用戶名封禁",
+		"random_username_ban_disabled": "已禁用隨機用戶名封禁",
+		"emoji_name_ban_enabled":       "已啟用姓名表情符號封禁",
+		"emoji_name_ban_disabled":      "已禁用姓名表情符號封禁",
+		"bio_link_ban_enabled":         "已啟用個人簡介可疑連結封禁",
+		"bio_link_ban_disabled":        "已禁用個人簡介可疑連結封禁",
+		"notifications_enabled":        "已啟用管理員通知",
+		"notifications_disabled":       "已禁用管理員通知",
+
+		// Other messages for action responses
+		"toggle_premium":         "切換Premium用戶封禁",
+		"toggle_cas":             "切換CAS驗證",
+		"toggle_random_username": "切換隨機用戶名封禁",
+		"toggle_emoji_name":      "切換姓名表情符號封禁",
+		"toggle_bio_link":        "切換個人簡介可疑連結封禁",
+		"toggle_notifications":   "切換管理員通知",
+		"change_language":        "更改語言",
+
+		"select_language": "請選擇機器人使用的語言:",
 	},
 
 	LangEnglish: {
@@ -286,6 +336,31 @@ var Translations = map[string]Translation{
 		"reason_emoji_name":      "Name contains emojis",
 		"reason_bio_link":        "Bio contains suspicious links",
 		"reason_cas_blacklisted": "User is on the CAS blacklist",
+
+		// Toggle action response messages
+		"premium_ban_enabled":          "Premium user ban enabled",
+		"premium_ban_disabled":         "Premium user ban disabled",
+		"cas_enabled":                  "CAS verification enabled",
+		"cas_disabled":                 "CAS verification disabled",
+		"random_username_ban_enabled":  "Random username ban enabled",
+		"random_username_ban_disabled": "Random username ban disabled",
+		"emoji_name_ban_enabled":       "Name emoji ban enabled",
+		"emoji_name_ban_disabled":      "Name emoji ban disabled",
+		"bio_link_ban_enabled":         "Bio suspicious link ban enabled",
+		"bio_link_ban_disabled":        "Bio suspicious link ban disabled",
+		"notifications_enabled":        "Admin notifications enabled",
+		"notifications_disabled":       "Admin notifications disabled",
+
+		// Other messages for action responses
+		"toggle_premium":         "Toggle Premium user ban",
+		"toggle_cas":             "Toggle CAS verification",
+		"toggle_random_username": "Toggle random username ban",
+		"toggle_emoji_name":      "Toggle name emoji ban",
+		"toggle_bio_link":        "Toggle bio suspicious link ban",
+		"toggle_notifications":   "Toggle admin notifications",
+		"change_language":        "Change language",
+
+		"select_language": "Please select a language for the bot:",
 	},
 }
 

@@ -1,9 +1,10 @@
-package handler
+package service
 
 import (
 	"context"
 	"fmt"
 
+	"tg-antispam/internal/config"
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/storage"
@@ -14,7 +15,13 @@ import (
 var (
 	groupInfoManager = models.NewGroupInfoManager()
 	groupRepository  *storage.GroupRepository
+	globalConfig     *config.Config
 )
+
+// Initialize initializes the service with configuration
+func Initialize(cfg *config.Config) {
+	globalConfig = cfg
+}
 
 // InitGroupRepository initializes the group repository if database is enabled
 func InitGroupRepository() {
