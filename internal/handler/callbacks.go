@@ -80,6 +80,15 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 		language = groupInfo.Language
 	}
 
+	// Notify the admin that the action was successful
+	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		CallbackQueryID: query.ID,
+		Text:            models.GetTranslation(language, "warning_user_unbanned"),
+	})
+	if err != nil {
+		logger.Warningf("Error answering callback query: %v", err)
+	}
+
 	// Get user information
 	userInfo, err := bot.GetChat(ctx.Context(), &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: userID},
@@ -98,27 +107,15 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 	userLink := fmt.Sprintf("tg://user?id=%d", userID)
 	linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, userName)
 
-	// Notify the admin that the action was successful
-	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
-		CallbackQueryID: query.ID,
-		Text:            fmt.Sprintf(models.GetTranslation(language, "warning_unbanned_message"), linkedUserName),
-	})
-	if err != nil {
-		logger.Warningf("Error answering callback query: %v", err)
-	}
-
 	// Update the message to reflect that the user was unbanned
 	if query.Message != nil {
 		if accessibleMsg, ok := query.Message.(*telego.Message); ok {
-			_, editErr := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+			bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
 				ChatID:    telego.ChatID{ID: accessibleMsg.Chat.ID},
 				MessageID: accessibleMsg.MessageID,
-				Text:      accessibleMsg.Text + "\n\n" + models.GetTranslation(language, "warning_user_unbanned"),
+				Text:      fmt.Sprintf(models.GetTranslation(language, "warning_unbanned_message"), linkedUserName),
 				ParseMode: "HTML",
 			})
-			if editErr != nil {
-				logger.Warningf("Error editing message: %v", editErr)
-			}
 		}
 	}
 
