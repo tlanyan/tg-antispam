@@ -19,16 +19,20 @@ func Initialize(cfg *config.Config) {
 func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	service.InitGroupRepository()
 
-	RegisterCommands(bh, bot)
-
-	botID := bot.ID()
-
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
+		err := RegisterCommands(ctx, bot, message)
+		if err == nil {
+			return handleIncomingMessage(ctx, bot, message)
+		}
+		return err
+	})
+
+	bh.HandleChannelPost(func(ctx *th.Context, message telego.Message) error {
 		return handleIncomingMessage(ctx, bot, message)
 	})
 
 	bh.Handle(func(ctx *th.Context, update telego.Update) error {
-		return handleChatMemberUpdate(ctx, bot, update, botID)
+		return handleChatMemberUpdate(ctx, bot, update)
 	}, th.AnyChatMember())
 
 	bh.Handle(func(ctx *th.Context, update telego.Update) error {

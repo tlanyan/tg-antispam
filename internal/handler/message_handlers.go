@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
 
@@ -24,11 +26,11 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	logger.Infof("Processing message: %+v", message)
 
 	// Use database configuration if available
-	useCAS := groupInfo.EnableCAS
 	shouldRestrict := false
 	reason := ""
 
-	if useCAS {
+	// @TODO: more rules
+	if strings.Contains(message.Text, "https://t.me/") {
 		shouldRestrict, reason = CasRequest(message.From.ID)
 	}
 
@@ -48,7 +50,8 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 }
 
 // handleChatMemberUpdate processes updates to chat members
-func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Update, botID int64) error {
+func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Update) error {
+	botID := bot.ID()
 	// Process ChatMember updates (when users join chat or change status)
 	if update.ChatMember != nil {
 		logger.Debugf("Chat member update: %+v", update.ChatMember)

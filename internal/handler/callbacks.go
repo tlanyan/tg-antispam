@@ -229,36 +229,40 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, c
 	groupInfo.Language = language
 	service.UpdateGroupInfo(groupInfo)
 
-	// Notify about the change
-	err := bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
-		CallbackQueryID: query.ID,
-		Text:            models.GetTranslation(language, "language_updated"),
-	})
-	if err != nil {
-		logger.Warningf("Error answering callback query: %v", err)
-	}
+	if query.ID != "" {
+		// Notify about the change
+		err := bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            fmt.Sprintf(models.GetTranslation(language, "language_updated"), getLanguageName(language)),
+		})
+		if err != nil {
+			logger.Warningf("Error answering callback query: %v", err)
+		}
 
-	// Update the settings message using the new shared function
-	// The groupID is chatID in this context for settings callbacks
-	settingsText, keyboard := buildGroupSettingsMessageParts(groupInfo, language, chatID)
+		// Update the settings message using the new shared function
+		// The groupID is chatID in this context for settings callbacks
+		settingsText, keyboard := buildGroupSettingsMessageParts(groupInfo, language, chatID)
 
-	// Update the message
-	if query.Message != nil {
-		if accessibleMsg, ok := query.Message.(*telego.Message); ok {
-			_, editErr := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
-				ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
-				MessageID:   accessibleMsg.MessageID,
-				Text:        settingsText,
-				ParseMode:   "HTML",
-				ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
-			})
-			if editErr != nil {
-				logger.Warningf("Error editing settings message: %v", editErr)
+		// Update the message
+		if query.Message != nil {
+			if accessibleMsg, ok := query.Message.(*telego.Message); ok {
+				_, editErr := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+					ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
+					MessageID:   accessibleMsg.MessageID,
+					Text:        settingsText,
+					ParseMode:   "HTML",
+					ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
+				})
+				if editErr != nil {
+					logger.Warningf("Error editing settings message: %v", editErr)
+				}
 			}
 		}
+
+		return err
 	}
 
-	return err
+	return nil
 }
 
 // getLanguageName returns the display name of a language code
@@ -380,15 +384,17 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 		return nil
 	}
 
-	logger.Infof("Action selection callback received: action=%s, group=%d", action, groupID)
+	logger.Infof("Action selection callback received: %+v", query)
 
-	// 通知用户已收到请求
-	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
-		CallbackQueryID: query.ID,
-		Text:            "正在处理您的请求...",
-	})
-	if err != nil {
-		logger.Warningf("Error answering callback query: %v", err)
+	if query.ID != "" {
+		// 通知用户已收到请求
+		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            "正在处理您的请求...",
+		})
+		if err != nil {
+			logger.Warningf("Error answering callback query: %v", err)
+		}
 	}
 
 	// 获取群组信息
@@ -531,20 +537,40 @@ func showLanguageSelection(ctx *th.Context, bot *telego.Bot, query telego.Callba
 	// 发送或更新消息
 	selectText := models.GetTranslation(language, "select_language")
 
-	if query.Message != nil {
-		if message, ok := query.Message.(*telego.Message); ok {
-			_, err := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
-				ChatID:      telego.ChatID{ID: message.Chat.ID},
-				MessageID:   message.MessageID,
-				Text:        selectText,
-				ParseMode:   "HTML",
-				ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
-			})
-			if err != nil {
-				logger.Warningf("Error editing message for language selection: %v", err)
+	if query.ID != "" {
+		if query.Message != nil {
+			if message, ok := query.Message.(*telego.Message); ok {
+				_, err := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+					ChatID:      telego.ChatID{ID: message.Chat.ID},
+					MessageID:   message.MessageID,
+					Text:        selectText,
+					ParseMode:   "HTML",
+					ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
+				})
+				if err != nil {
+					logger.Warningf("Error editing message for language selection: %v", err)
+				}
 			}
 		}
-	}
+	} else {
+		var message telego.Message
+		switch msg := query.Message.(type) {
+		case *telego.Message:
+			message = *msg
+		default:
+			logger.Warningf("Unexpected message type in language selection: %T", msg)
+			return nil
+		}
 
+		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID:      telego.ChatID{ID: message.Chat.ID},
+			Text:        selectText,
+			ParseMode:   "HTML",
+			ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
+		})
+		if err != nil {
+			logger.Warningf("Error sending language selection message: %v", err)
+		}
+	}
 	return nil
 }

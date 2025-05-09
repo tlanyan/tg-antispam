@@ -15,49 +15,43 @@ import (
 )
 
 // registers all bot command handlers
-func RegisterCommands(bh *th.BotHandler, bot *telego.Bot) {
-	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		// Skip non-command messages
-		if !strings.HasPrefix(message.Text, "/") {
-			return nil
-		}
-
-		switch message.Text {
-		case "/help":
-			return sendHelpMessage(ctx, bot, message)
-		case "/settings":
-			return handleSettingsCommand(ctx, bot, message)
-		case "/toggle_premium":
-			return handleToggleCommand(ctx, bot, message, "toggle_premium")
-		case "/toggle_cas":
-			return handleToggleCommand(ctx, bot, message, "toggle_cas")
-		case "/toggle_random_username":
-			return handleToggleCommand(ctx, bot, message, "toggle_random_username")
-		case "/toggle_emoji_name":
-			return handleToggleCommand(ctx, bot, message, "toggle_emoji_name")
-		case "/toggle_bio_link":
-			return handleToggleCommand(ctx, bot, message, "toggle_bio_link")
-		case "/toggle_notifications":
-			return handleToggleCommand(ctx, bot, message, "toggle_notifications")
-		case "/language":
-			return handleToggleCommand(ctx, bot, message, "language")
-		}
+func RegisterCommands(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	// Skip non-command messages
+	if !strings.HasPrefix(message.Text, "/") {
 		return nil
-	})
+	}
 
-	// Handle group ID input for adding groups
-	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		if message.Chat.Type == "private" && message.ReplyToMessage != nil {
-			// Check if the message is a reply to our "enter group ID" message
-			if message.ReplyToMessage.From.ID == bot.ID() &&
-				(strings.Contains(message.ReplyToMessage.Text, "请输入群组ID") ||
-					strings.Contains(message.ReplyToMessage.Text, "請輸入群組ID") ||
-					strings.Contains(message.ReplyToMessage.Text, "Please enter the Group ID")) {
-				return handleGroupIDInput(ctx, bot, message)
-			}
+	switch message.Text {
+	case "/help":
+		return sendHelpMessage(ctx, bot, message)
+	case "/settings":
+		return handleSettingsCommand(ctx, bot, message)
+	case "/toggle_premium":
+		return handleToggleCommand(ctx, bot, message, "toggle_premium")
+	case "/toggle_cas":
+		return handleToggleCommand(ctx, bot, message, "toggle_cas")
+	case "/toggle_random_username":
+		return handleToggleCommand(ctx, bot, message, "toggle_random_username")
+	case "/toggle_emoji_name":
+		return handleToggleCommand(ctx, bot, message, "toggle_emoji_name")
+	case "/toggle_bio_link":
+		return handleToggleCommand(ctx, bot, message, "toggle_bio_link")
+	case "/toggle_notifications":
+		return handleToggleCommand(ctx, bot, message, "toggle_notifications")
+	case "/language":
+		return handleToggleCommand(ctx, bot, message, "language")
+	}
+
+	if message.Chat.Type == "private" && message.ReplyToMessage != nil {
+		// Check if the message is a reply to our "enter group ID" message
+		if message.ReplyToMessage.From.ID == bot.ID() &&
+			(strings.Contains(message.ReplyToMessage.Text, "请输入群组ID") ||
+				strings.Contains(message.ReplyToMessage.Text, "請輸入群組ID") ||
+				strings.Contains(message.ReplyToMessage.Text, "Please enter the Group ID")) {
+			return handleGroupIDInput(ctx, bot, message)
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // sendHelpMessage sends help information based on chat type and language
@@ -112,6 +106,7 @@ func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) e
 func handleSettingsCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
 	language := models.LangSimplifiedChinese
 
+	logger.Debugf("handleSettingsCommand called for message: %+v", message)
 	if message.Chat.Type == "private" {
 		return showGroupSelection(ctx, bot, message, "settings")
 	} else {
@@ -139,6 +134,7 @@ func handleSettingsCommand(ctx *th.Context, bot *telego.Bot, message telego.Mess
 
 // handleToggleCommand is a generic handler for all toggle commands
 func handleToggleCommand(ctx *th.Context, bot *telego.Bot, message telego.Message, action string) error {
+	logger.Debugf("handleToggleCommand called for message: %+v", message)
 	if message.Chat.Type == "private" {
 		return showGroupSelection(ctx, bot, message, action)
 	} else {
@@ -161,6 +157,7 @@ func handleToggleCommand(ctx *th.Context, bot *telego.Bot, message telego.Messag
 
 // handleGroupIDInput processes user input when adding a group by ID
 func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	logger.Debugf("handleGroupIDInput called for message: %+v", message)
 	// Get the ID from the message
 	groupID, err := strconv.ParseInt(strings.TrimSpace(message.Text), 10, 64)
 	if err != nil {
@@ -246,6 +243,7 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 
 // showGroupSelection displays a list of groups for the user to select from
 func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message, action string) error {
+	logger.Debugf("showGroupSelection called for message: %+v", message)
 	userID := message.From.ID
 	language := models.LangSimplifiedChinese
 
