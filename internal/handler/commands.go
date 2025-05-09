@@ -356,24 +356,16 @@ func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message
 	return err
 }
 
-// showGroupSettings displays the settings for a group
-func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message, groupID int64, language string) error {
-	// 获取群组信息
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
-	if groupInfo == nil || !groupInfo.IsAdmin {
-		// 机器人不是管理员
-		msg, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      models.GetTranslation(language, "bot_not_admin"),
-			ParseMode: "HTML",
-		})
-		if err != nil {
-			logger.Warningf("Error sending bot not admin message: %v", err)
-		}
-		logger.Infof("Sent bot not admin message: %+v", msg)
-		return err
+// getBoolStatusText returns "enabled" or "disabled" based on a boolean value
+func getBoolStatusText(value bool) string {
+	if value {
+		return "enabled"
 	}
+	return "disabled"
+}
 
+// buildGroupSettingsMessageParts constructs the settings message text and keyboard
+func buildGroupSettingsMessageParts(groupInfo *models.GroupInfo, language string, groupID int64) (string, [][]telego.InlineKeyboardButton) {
 	// 构建设置消息
 	settingsText := fmt.Sprintf("<b>%s</b>\n\n<b>%s</b> %s\n\n<b>%s</b>\n",
 		fmt.Sprintf(models.GetTranslation(language, "settings_title"), groupInfo.GroupName),
@@ -444,6 +436,28 @@ func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message,
 			},
 		},
 	}
+	return settingsText, keyboard
+}
+
+// showGroupSettings displays the settings for a group
+func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message, groupID int64, language string) error {
+	// 获取群组信息
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
+	if groupInfo == nil || !groupInfo.IsAdmin {
+		// 机器人不是管理员
+		msg, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID:    telego.ChatID{ID: message.Chat.ID},
+			Text:      models.GetTranslation(language, "bot_not_admin"),
+			ParseMode: "HTML",
+		})
+		if err != nil {
+			logger.Warningf("Error sending bot not admin message: %v", err)
+		}
+		logger.Infof("Sent bot not admin message: %+v", msg)
+		return err
+	}
+
+	settingsText, keyboard := buildGroupSettingsMessageParts(groupInfo, language, groupID)
 
 	// 发送设置消息
 	msg, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{

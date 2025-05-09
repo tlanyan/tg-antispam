@@ -38,12 +38,9 @@ func InitGroupRepository() {
 }
 
 func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.GroupInfo {
-	logger.Infof("GetGroupInfo called for chatID: %d", chatID)
-
 	// First check the in-memory cache
 	groupInfo := groupInfoManager.GetGroupInfo(chatID)
 	if groupInfo != nil {
-		logger.Infof("Found group info in cache for chatID: %d", chatID)
 		return groupInfo
 	}
 

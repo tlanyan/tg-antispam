@@ -175,17 +175,23 @@ func GetLinkedUserName(user telego.User) string {
 
 // SendWarning sends a warning message about the restricted user
 func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupInfo, user telego.User, reason string) {
-	// Get localized reason text
-	reasonText := models.GetTranslation(groupInfo.Language, reason)
+	language := groupInfo.Language
 
 	// Get user display name with HTML link
 	userLink := GetLinkedUserName(user)
 
+	linkedGroupName := groupInfo.GetLinkedGroupName()
+	if linkedGroupName == "" {
+		logger.Infof("failed to get Group name, do not send warning")
+		return
+	}
+
 	// Construct message with appropriate translation
 	message := fmt.Sprintf(
-		"%s\n%s",
-		fmt.Sprintf(models.GetTranslation(groupInfo.Language, "user_restricted"), userLink),
-		fmt.Sprintf(models.GetTranslation(groupInfo.Language, "reason"), reasonText),
+		"%s\n%s\n%s",
+		fmt.Sprintf(models.GetTranslation(language, "warning_title"), linkedGroupName),
+		fmt.Sprintf(models.GetTranslation(language, "warning_restricted"), userLink),
+		fmt.Sprintf(models.GetTranslation(language, "warning_reason"), models.GetTranslation(language, reason)),
 	)
 
 	// Add "unban" button if enabled (检查全局配置是否支持解封功能)
@@ -194,7 +200,7 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 	// 如：默认启用解封按钮功能
 	enableUnban := true
 	if enableUnban {
-		unbanButtonText := models.GetTranslation(groupInfo.Language, "unban_button")
+		unbanButtonText := models.GetTranslation(groupInfo.Language, "warning_unban_button")
 		markup = &telego.InlineKeyboardMarkup{
 			InlineKeyboard: [][]telego.InlineKeyboardButton{
 				{
@@ -211,14 +217,6 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 	chatID := groupInfo.GroupID
 	if groupInfo.AdminID > 0 {
 		chatID = groupInfo.AdminID
-	}
-
-	// Add group info if sending to admin
-	if chatID != groupInfo.GroupID {
-		groupLink := fmt.Sprintf("<a href=\"%s\">%s</a>", groupInfo.GroupLink, groupInfo.GroupName)
-		message = fmt.Sprintf("%s\n%s: %s", message,
-			models.GetTranslation(groupInfo.Language, "group"),
-			groupLink)
 	}
 
 	_, err := bot.SendMessage(ctx, &telego.SendMessageParams{

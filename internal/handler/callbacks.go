@@ -80,10 +80,28 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 		language = groupInfo.Language
 	}
 
+	// Get user information
+	userInfo, err := bot.GetChat(ctx.Context(), &telego.GetChatParams{
+		ChatID: telego.ChatID{ID: userID},
+	})
+	if err != nil {
+		logger.Infof("Error getting user info: %v", err)
+		return nil
+	}
+
+	userName := userInfo.FirstName
+	if userInfo.LastName != "" {
+		userName += " " + userInfo.LastName
+	}
+
+	// Create user link
+	userLink := fmt.Sprintf("tg://user?id=%d", userID)
+	linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, userName)
+
 	// Notify the admin that the action was successful
 	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
 		CallbackQueryID: query.ID,
-		Text:            models.GetTranslation(language, "user_unrestricted"),
+		Text:            fmt.Sprintf(models.GetTranslation(language, "warning_unbanned_message"), linkedUserName),
 	})
 	if err != nil {
 		logger.Warningf("Error answering callback query: %v", err)
@@ -95,7 +113,7 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 			_, editErr := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
 				ChatID:    telego.ChatID{ID: accessibleMsg.Chat.ID},
 				MessageID: accessibleMsg.MessageID,
-				Text:      accessibleMsg.Text + "\n\n" + models.GetTranslation(language, "user_unrestricted"),
+				Text:      accessibleMsg.Text + "\n\n" + models.GetTranslation(language, "warning_user_unbanned"),
 				ParseMode: "HTML",
 			})
 			if editErr != nil {
@@ -159,79 +177,9 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, c
 		logger.Warningf("Error answering callback query: %v", err)
 	}
 
-	// Update the settings message
-	currentLang := models.GetTranslation(language, "current_language")
-	welcomeText := models.GetTranslation(language, "welcome_to_settings")
-	currentSettings := models.GetTranslation(language, "current_settings")
-
-	// Build the settings message
-	settingsText := fmt.Sprintf("<b>%s</b>\n\n<b>%s:</b>\n%s: %s\n",
-		welcomeText,
-		currentSettings,
-		currentLang,
-		getLanguageName(language),
-	)
-
-	// Add other settings
-	premiumStatus := models.GetTranslation(language, getBoolStatusText(groupInfo.BanPremium))
-	casStatus := models.GetTranslation(language, getBoolStatusText(groupInfo.EnableCAS))
-	randomUsernameStatus := models.GetTranslation(language, getBoolStatusText(groupInfo.BanRandomUsername))
-	emojiNameStatus := models.GetTranslation(language, getBoolStatusText(groupInfo.BanEmojiName))
-	bioLinkStatus := models.GetTranslation(language, getBoolStatusText(groupInfo.BanBioLink))
-	notificationStatus := models.GetTranslation(language, getBoolStatusText(groupInfo.EnableNotification))
-
-	settingsText += models.GetTranslation(language, "ban_premium") + ": " + premiumStatus + "\n"
-	settingsText += models.GetTranslation(language, "use_cas") + ": " + casStatus + "\n"
-	settingsText += models.GetTranslation(language, "ban_random_username") + ": " + randomUsernameStatus + "\n"
-	settingsText += models.GetTranslation(language, "ban_emoji_name") + ": " + emojiNameStatus + "\n"
-	settingsText += models.GetTranslation(language, "ban_bio_link") + ": " + bioLinkStatus + "\n"
-	settingsText += models.GetTranslation(language, "enable_notifications") + ": " + notificationStatus
-
-	// Create an inline keyboard for settings
-	keyboard := [][]telego.InlineKeyboardButton{
-		{
-			{
-				Text:         models.GetTranslation(language, "toggle_premium"),
-				CallbackData: fmt.Sprintf("action:toggle_premium:%d", chatID),
-			},
-		},
-		{
-			{
-				Text:         models.GetTranslation(language, "toggle_cas"),
-				CallbackData: fmt.Sprintf("action:toggle_cas:%d", chatID),
-			},
-		},
-		{
-			{
-				Text:         models.GetTranslation(language, "toggle_random_username"),
-				CallbackData: fmt.Sprintf("action:toggle_random_username:%d", chatID),
-			},
-		},
-		{
-			{
-				Text:         models.GetTranslation(language, "toggle_emoji_name"),
-				CallbackData: fmt.Sprintf("action:toggle_emoji_name:%d", chatID),
-			},
-		},
-		{
-			{
-				Text:         models.GetTranslation(language, "toggle_bio_link"),
-				CallbackData: fmt.Sprintf("action:toggle_bio_link:%d", chatID),
-			},
-		},
-		{
-			{
-				Text:         models.GetTranslation(language, "toggle_notifications"),
-				CallbackData: fmt.Sprintf("action:toggle_notifications:%d", chatID),
-			},
-		},
-		{
-			{
-				Text:         models.GetTranslation(language, "change_language"),
-				CallbackData: fmt.Sprintf("action:language:%d", chatID),
-			},
-		},
-	}
+	// Update the settings message using the new shared function
+	// The groupID is chatID in this context for settings callbacks
+	settingsText, keyboard := buildGroupSettingsMessageParts(groupInfo, language, chatID)
 
 	// Update the message
 	if query.Message != nil {
@@ -250,14 +198,6 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, c
 	}
 
 	return err
-}
-
-// getBoolStatusText returns "enabled" or "disabled" based on a boolean value
-func getBoolStatusText(value bool) string {
-	if value {
-		return "status_enabled"
-	}
-	return "status_disabled"
 }
 
 // getLanguageName returns the display name of a language code
