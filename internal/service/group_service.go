@@ -44,7 +44,6 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 		return groupInfo
 	}
 
-	// If not found in cache but database is enabled, try to load it from database
 	if groupRepository != nil {
 		dbGroupInfo, err := groupRepository.GetGroupInfo(chatID)
 		if err != nil {
@@ -58,7 +57,6 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 		}
 	}
 
-	// If still not found, create a new one with default values
 	logger.Infof("Creating new group info for chatID: %d", chatID)
 	groupInfo = &models.GroupInfo{
 		GroupID:            chatID,
@@ -73,21 +71,17 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 		Language:           "zh_CN",
 	}
 
-	// Try to get group information from Telegram
 	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 
 	if err != nil {
 		logger.Warningf("Error getting chat info from Telegram: %v", err)
-		// Still return the default group info
 		return groupInfo
 	}
 
-	// Update group name
 	groupInfo.GroupName = chatInfo.Title
 
-	// Set group link if available
 	if chatInfo.Username != "" {
 		groupInfo.GroupLink = fmt.Sprintf("https://t.me/%s", chatInfo.Username)
 	} else {
@@ -101,14 +95,11 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 		groupInfo.GroupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
 	}
 
-	// Try to check admin status
 	groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(ctx, bot, chatID)
 	logger.Infof("Group info created: %+v", groupInfo)
 
-	// Save to cache
 	groupInfoManager.AddGroupInfo(groupInfo)
 
-	// Save to database if enabled
 	if groupRepository != nil {
 		if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
 			logger.Warningf("Error saving group info to database: %v", err)
@@ -120,10 +111,8 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 
 // UpdateGroupInfo updates group information in cache and database
 func UpdateGroupInfo(groupInfo *models.GroupInfo) {
-	// Update cache
 	groupInfoManager.AddGroupInfo(groupInfo)
 
-	// Update database if enabled
 	if groupRepository != nil {
 		if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
 			logger.Warningf("Error updating group info in database: %v", err)
@@ -132,7 +121,6 @@ func UpdateGroupInfo(groupInfo *models.GroupInfo) {
 }
 
 func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64, bool) {
-	// Need a bot instance to make API calls
 	newBot, err := telego.NewBot(globalConfig.Bot.Token)
 	if err != nil {
 		logger.Warningf("Error creating temporary bot for admin check: %v", err)
@@ -140,7 +128,6 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 	}
 	defer newBot.Close(ctx)
 
-	// Get all administrators in the chat
 	admins, err := newBot.GetChatAdministrators(ctx, &telego.GetChatAdministratorsParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
@@ -150,7 +137,6 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 	}
 
 	botID := bot.ID()
-	// First check: First determine if bot is an admin
 	botIsAdmin := false
 	for _, admin := range admins {
 		if admin.MemberUser().ID == botID {
@@ -180,7 +166,6 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 			continue
 		}
 
-		// Check if this admin can promote members
 		if admin.MemberStatus() == telego.MemberStatusAdministrator {
 			if adminMember, ok := admin.(*telego.ChatMemberAdministrator); ok {
 				if adminMember.CanPromoteMembers {
@@ -190,8 +175,6 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 		}
 	}
 
-	// If we found admins who can promote, return the first one
-	// This is our best guess at who promoted the bot
 	if len(candidateAdmins) > 0 {
 		return candidateAdmins[0].User.ID, true
 	}
@@ -202,7 +185,6 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 
 // GetLinkedGroupName gets a linked HTML representation of the group name with caching
 func GetGroupName(ctx context.Context, bot *telego.Bot, chatID int64) (string, string) {
-	// Cache miss, fetch from API
 	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
@@ -215,8 +197,6 @@ func GetGroupName(ctx context.Context, bot *telego.Bot, chatID int64) (string, s
 	if chatInfo.Username != "" {
 		groupLink = fmt.Sprintf("https://t.me/%s", chatInfo.Username)
 	} else {
-		// For private groups, convert the chat ID to work with t.me links
-		// Telegram requires removing the -100 prefix from supergroup IDs for links
 		groupIDForLink := chatID
 		if groupIDForLink < -1000000000000 {
 			// Extract the actual ID from the negative number (skip the -100 prefix)

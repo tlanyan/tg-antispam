@@ -87,8 +87,6 @@ func CasRequest(userID int64) (bool, string) {
 
 // HasLinksInBio checks if a user has t.me links in their bio
 func HasLinksInBio(ctx context.Context, bot *telego.Bot, userID int64) bool {
-	// 由于API变更，我们需要获取用户简介的方法可能不同
-	// 尝试通过GetChat来获取用户信息
 	chat, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: userID},
 	})
@@ -98,7 +96,6 @@ func HasLinksInBio(ctx context.Context, bot *telego.Bot, userID int64) bool {
 		return false
 	}
 
-	// 检查是否有简介并且包含telegram链接
 	return chat.Bio != "" && tgLinkRegex.MatchString(chat.Bio)
 }
 
@@ -113,35 +110,21 @@ func IsRandomUsername(username string) bool {
 		return false
 	}
 
-	// Check for patterns of random usernames
-	// 1. More than 3 consecutive digits
-	consecutiveDigits := regexp.MustCompile(`\d{4,}`)
-	if consecutiveDigits.MatchString(username) {
+	consonantsRegex := regexp.MustCompile(`[bcdfghjklmnpqrstvwxyz]{5}`)
+	if consonantsRegex.MatchString(strings.ToLower(username)) {
 		return true
 	}
 
-	// 2. Random mix of letters and numbers
-	// Look for username where more than 70% are digits or it ends with 4+ digits
-	digitCount := 0
-	for _, char := range username {
-		if char >= '0' && char <= '9' {
-			digitCount++
-		}
-	}
-
-	// If more than 70% are digits, consider it random
-	if float64(digitCount)/float64(len(username)) > 0.7 {
+	digitsRegex := regexp.MustCompile(`\d{7}`)
+	if digitsRegex.MatchString(username) {
 		return true
 	}
 
-	// If username ends with several digits
-	endsWithDigits := regexp.MustCompile(`\d{4,}$`)
-	return endsWithDigits.MatchString(username)
+	return false
 }
 
 // RestrictUser restricts a user in a chat
 func RestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) {
-	// 根据telego库的API更改，创建权限对象
 	permissions := telego.ChatPermissions{}
 
 	err := bot.RestrictChatMember(ctx, &telego.RestrictChatMemberParams{
@@ -194,23 +177,17 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 		fmt.Sprintf(models.GetTranslation(language, "warning_reason"), models.GetTranslation(language, reason)),
 	)
 
-	// Add "unban" button if enabled (检查全局配置是否支持解封功能)
 	var markup *telego.InlineKeyboardMarkup
-	// 由于globalConfig.Features不存在，我们可以直接使用一个简单的条件判断
-	// 如：默认启用解封按钮功能
-	enableUnban := true
-	if enableUnban {
-		unbanButtonText := models.GetTranslation(groupInfo.Language, "warning_unban_button")
-		markup = &telego.InlineKeyboardMarkup{
-			InlineKeyboard: [][]telego.InlineKeyboardButton{
+	unbanButtonText := models.GetTranslation(groupInfo.Language, "warning_unban_button")
+	markup = &telego.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telego.InlineKeyboardButton{
+			{
 				{
-					{
-						Text:         unbanButtonText,
-						CallbackData: fmt.Sprintf("unban:%d:%d", groupInfo.GroupID, user.ID),
-					},
+					Text:         unbanButtonText,
+					CallbackData: fmt.Sprintf("unban:%d:%d", groupInfo.GroupID, user.ID),
 				},
 			},
-		}
+		},
 	}
 
 	// Send notification to admin chat if it exists
@@ -233,18 +210,15 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 
 // UnrestrictUser removes restrictions from a user in a chat
 func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) {
-	// 根据最新的telego API获取默认权限
 	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 
-	// 使用完整权限或默认权限
 	permissions := telego.ChatPermissions{}
 	if err == nil && chatInfo.Permissions != nil {
 		permissions = *chatInfo.Permissions
 	}
 
-	// 重新设置用户权限
 	err = bot.RestrictChatMember(ctx, &telego.RestrictChatMemberParams{
 		ChatID:      telego.ChatID{ID: chatID},
 		UserID:      userID,

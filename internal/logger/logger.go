@@ -15,20 +15,14 @@ import (
 	"tg-antispam/internal/config"
 )
 
-// LogLevel represents the severity level of a log message
 type LogLevel string
 
 const (
-	// LevelDebug for detailed troubleshooting
-	LevelDebug LogLevel = "DEBUG"
-	// LevelInfo for general operational information
-	LevelInfo LogLevel = "INFO"
-	// LevelWarning for potentially harmful situations
+	LevelDebug   LogLevel = "DEBUG"
+	LevelInfo    LogLevel = "INFO"
 	LevelWarning LogLevel = "WARNING"
-	// LevelError for error events that might still allow the application to continue
-	LevelError LogLevel = "ERROR"
-	// LevelFatal for very severe error events that will likely lead to application termination
-	LevelFatal LogLevel = "FATAL"
+	LevelError   LogLevel = "ERROR"
+	LevelFatal   LogLevel = "FATAL"
 )
 
 // levelOrder defines the severity order of log levels
@@ -155,7 +149,6 @@ func (l *customLogger) log(level LogLevel, calldepth int, message string) {
 	l.logger.Output(calldepth, logLine)
 }
 
-// Debug logs a debug message
 func (l *customLogger) Debug(v ...interface{}) {
 	if !l.ShouldLog(LevelDebug) {
 		return
@@ -164,7 +157,6 @@ func (l *customLogger) Debug(v ...interface{}) {
 	l.log(LevelDebug, 3, message)
 }
 
-// Debugf logs a formatted debug message
 func (l *customLogger) Debugf(format string, v ...interface{}) {
 	if !l.ShouldLog(LevelDebug) {
 		return
@@ -173,7 +165,6 @@ func (l *customLogger) Debugf(format string, v ...interface{}) {
 	l.log(LevelDebug, 3, message)
 }
 
-// Info logs an info message
 func (l *customLogger) Info(v ...interface{}) {
 	if !l.ShouldLog(LevelInfo) {
 		return
@@ -182,7 +173,6 @@ func (l *customLogger) Info(v ...interface{}) {
 	l.log(LevelInfo, 3, message)
 }
 
-// Infof logs a formatted info message
 func (l *customLogger) Infof(format string, v ...interface{}) {
 	if !l.ShouldLog(LevelInfo) {
 		return
@@ -191,7 +181,6 @@ func (l *customLogger) Infof(format string, v ...interface{}) {
 	l.log(LevelInfo, 3, message)
 }
 
-// Warning logs a warning message
 func (l *customLogger) Warning(v ...interface{}) {
 	if !l.ShouldLog(LevelWarning) {
 		return
@@ -200,7 +189,6 @@ func (l *customLogger) Warning(v ...interface{}) {
 	l.log(LevelWarning, 3, message)
 }
 
-// Warningf logs a formatted warning message
 func (l *customLogger) Warningf(format string, v ...interface{}) {
 	if !l.ShouldLog(LevelWarning) {
 		return
@@ -209,7 +197,6 @@ func (l *customLogger) Warningf(format string, v ...interface{}) {
 	l.log(LevelWarning, 3, message)
 }
 
-// Error logs an error message
 func (l *customLogger) Error(v ...interface{}) {
 	if !l.ShouldLog(LevelError) {
 		return
@@ -218,7 +205,6 @@ func (l *customLogger) Error(v ...interface{}) {
 	l.log(LevelError, 3, message)
 }
 
-// Errorf logs a formatted error message
 func (l *customLogger) Errorf(format string, v ...interface{}) {
 	if !l.ShouldLog(LevelError) {
 		return
@@ -227,26 +213,22 @@ func (l *customLogger) Errorf(format string, v ...interface{}) {
 	l.log(LevelError, 3, message)
 }
 
-// Fatal logs a fatal message and exits
 func (l *customLogger) Fatal(v ...interface{}) {
 	message := fmt.Sprint(v...)
 	l.log(LevelFatal, 3, message)
 	os.Exit(1)
 }
 
-// Fatalf logs a formatted fatal message and exits
 func (l *customLogger) Fatalf(format string, v ...interface{}) {
 	message := fmt.Sprintf(format, v...)
 	l.log(LevelFatal, 3, message)
 	os.Exit(1)
 }
 
-// Printf is a custom implementation of Printf for our logger (INFO level)
 func (l *customLogger) Printf(format string, v ...interface{}) {
 	l.Infof(format, v...)
 }
 
-// Print is a custom implementation of Print for our logger (INFO level)
 func (l *customLogger) Print(v ...interface{}) {
 	l.Info(v...)
 }
@@ -254,7 +236,6 @@ func (l *customLogger) Print(v ...interface{}) {
 // Println is a custom implementation of Println for our logger (INFO level)
 func (l *customLogger) Println(v ...interface{}) {
 	message := fmt.Sprintln(v...)
-	// Remove trailing newline if present
 	if len(message) > 0 && message[len(message)-1] == '\n' {
 		message = message[:len(message)-1]
 	}
@@ -270,16 +251,13 @@ func Setup(cfg *config.Config) error {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	// Parse timezone
 	timezone, err := time.LoadLocation(cfg.Logger.Timezone)
 	if err != nil {
 		return fmt.Errorf("failed to load timezone %s: %w", cfg.Logger.Timezone, err)
 	}
 
-	// Parse log level
 	level, err := ParseLogLevel(cfg.Logger.Level)
 	if err != nil {
-		// Default to INFO if level is invalid
 		level = LevelInfo
 		fmt.Printf("Warning: invalid log level '%s', defaulting to INFO\n", cfg.Logger.Level)
 	}
@@ -288,12 +266,10 @@ func Setup(cfg *config.Config) error {
 	rotatingLogger := createRotatingLogger(logFilePath, cfg)
 	multiWriter := createMultiWriter(rotatingLogger)
 
-	// Create and set the global logger
 	globalLogger = createCustomLogger(multiWriter, timezone, cfg.Logger.Format, cfg.Logger.TimeFormat, level)
 
-	// Also set standard logger for backward compatibility
 	log.SetOutput(multiWriter)
-	log.SetFlags(0) // We'll let our custom logger handle the formatting
+	log.SetFlags(0)
 
 	globalLogger.Infof("Logging initialized: writing to %s with timezone %s, minimum log level: %s",
 		logFilePath, cfg.Logger.Timezone, level)
@@ -307,7 +283,6 @@ func GetRotatingLogWriter(cfg *config.Config, prefix string) io.Writer {
 	return createMultiWriter(rotatingLogger)
 }
 
-// Debug logs a debug message to the global logger
 func Debug(v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Debug(v...)
@@ -316,7 +291,6 @@ func Debug(v ...interface{}) {
 	}
 }
 
-// Debugf logs a formatted debug message to the global logger
 func Debugf(format string, v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Debugf(format, v...)
@@ -325,7 +299,6 @@ func Debugf(format string, v ...interface{}) {
 	}
 }
 
-// Info logs an info message to the global logger
 func Info(v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Info(v...)
@@ -334,7 +307,6 @@ func Info(v ...interface{}) {
 	}
 }
 
-// Infof logs a formatted info message to the global logger
 func Infof(format string, v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Infof(format, v...)
@@ -343,7 +315,6 @@ func Infof(format string, v ...interface{}) {
 	}
 }
 
-// Warning logs a warning message to the global logger
 func Warning(v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Warning(v...)
@@ -352,7 +323,6 @@ func Warning(v ...interface{}) {
 	}
 }
 
-// Warningf logs a formatted warning message to the global logger
 func Warningf(format string, v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Warningf(format, v...)
@@ -361,7 +331,6 @@ func Warningf(format string, v ...interface{}) {
 	}
 }
 
-// Error logs an error message to the global logger
 func Error(v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Error(v...)
@@ -370,7 +339,6 @@ func Error(v ...interface{}) {
 	}
 }
 
-// Errorf logs a formatted error message to the global logger
 func Errorf(format string, v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Errorf(format, v...)
@@ -379,7 +347,6 @@ func Errorf(format string, v ...interface{}) {
 	}
 }
 
-// Printf provides a global printf implementation (INFO level)
 func Printf(format string, v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Infof(format, v...)
@@ -388,7 +355,6 @@ func Printf(format string, v ...interface{}) {
 	}
 }
 
-// Print provides a global print implementation (INFO level)
 func Print(v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Info(v...)
@@ -397,11 +363,9 @@ func Print(v ...interface{}) {
 	}
 }
 
-// Println provides a global println implementation (INFO level)
 func Println(v ...interface{}) {
 	if globalLogger != nil {
 		message := fmt.Sprintln(v...)
-		// Remove trailing newline if present
 		if len(message) > 0 && message[len(message)-1] == '\n' {
 			message = message[:len(message)-1]
 		}
@@ -411,7 +375,6 @@ func Println(v ...interface{}) {
 	}
 }
 
-// Fatal provides a global fatal implementation
 func Fatal(v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Fatal(v...)
@@ -420,7 +383,6 @@ func Fatal(v ...interface{}) {
 	}
 }
 
-// Fatalf provides a global fatalf implementation
 func Fatalf(format string, v ...interface{}) {
 	if globalLogger != nil {
 		globalLogger.Fatalf(format, v...)

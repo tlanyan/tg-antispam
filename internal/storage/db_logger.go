@@ -47,35 +47,30 @@ func NewCustomGormLogger(level string) logger.Interface {
 	}
 }
 
-// LogMode 设置日志级别
 func (l *CustomGormLogger) LogMode(level logger.LogLevel) logger.Interface {
 	newLogger := *l
 	newLogger.LogLevel = level
 	return &newLogger
 }
 
-// Info 输出信息级别日志
 func (l *CustomGormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
 	if l.LogLevel >= logger.Info {
 		customlogger.Infof(msg, data...)
 	}
 }
 
-// Warn 输出警告级别日志
 func (l *CustomGormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
 	if l.LogLevel >= logger.Warn {
 		customlogger.Warningf(msg, data...)
 	}
 }
 
-// Error 输出错误级别日志
 func (l *CustomGormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
 	if l.LogLevel >= logger.Error {
 		customlogger.Errorf(msg, data...)
 	}
 }
 
-// Trace 记录SQL执行情况
 func (l *CustomGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
 	if l.LogLevel <= logger.Silent {
 		return
@@ -84,13 +79,11 @@ func (l *CustomGormLogger) Trace(ctx context.Context, begin time.Time, fc func()
 	elapsed := time.Since(begin)
 	sql, rows := fc()
 
-	// 获取调用位置
 	var source string
 	if !l.SkipCallerLookup {
 		source = utils.FileWithLineNum()
 	}
 
-	// 根据执行结果决定日志级别
 	switch {
 	case err != nil && l.LogLevel >= logger.Error && (!errors.Is(err, gorm.ErrRecordNotFound) || !l.IgnoreRecordNotFoundError):
 		if source != "" {

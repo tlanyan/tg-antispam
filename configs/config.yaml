@@ -3,126 +3,93 @@
 # Bot Configuration
 bot:
   # Telegram Bot Token (required)
-  # 从 @BotFather 获取: https://t.me/BotFather
+  # get token from @BotFather: https://t.me/BotFather
   token: ""
 
   # Webhook Configuration
   webhook:
     # Public webhook URL (required) - e.g., https://yourdomain.com/webhook
-    # 公开访问的Webhook URL，必须是HTTPS链接
     endpoint: ""
 
     # listen port, may be different the port int endpoint
-    # 程序监听端口，可以和endpoint中的端口不一样
     listen_port: "8443"
 
     # debug path, for debug webhook
-    # 调试路径，用于调试Webhook
     debug_path: "/debug"
 
     # SSL Certificate file path (optional if using HTTPS proxy like Nginx)
-    # SSL证书文件路径 (如果使用Nginx等反向代理，可不设置)
     cert_file: ""
 
     # SSL Key file path (optional if using HTTPS proxy like Nginx)
-    # SSL密钥文件路径 (如果使用Nginx等反向代理，可不设置)
     key_file: ""
 
 # Database Configuration
 database:
   # Whether to enable database support
-  # 是否启用数据库支持
   enabled: false
 
-  # Database host
-  # 数据库主机地址
   host: "localhost"
 
-  # Database port
-  # 数据库端口
   port: 3306
 
-  # Database username
-  # 数据库用户名
   username: "root"
 
-  # Database password
-  # 数据库密码
   password: ""
 
-  # Database name
-  # 数据库名称
   dbname: "tgantispam"
 
-  # Database charset
-  # 数据库字符集
   charset: "utf8mb4"
 
 # Logging Configuration
 logger:
   # Directory for log files
-  # 日志文件保存目录
   directory: "logs"
 
   # Timezone for logs (IANA timezone database names)
-  # 日志时区 (IANA时区数据库名称)
   # Examples: "Asia/Shanghai", "America/New_York", "Europe/London", "UTC", "Local"
   timezone: "Local"
 
   # Minimum log level to output
-  # 最低日志输出级别
   # Available levels: "DEBUG", "INFO", "WARNING", "ERROR", "FATAL"
   level: "INFO"
 
   # Log format pattern with placeholders
-  # 日志格式模板，使用占位符
   # Available placeholders: %{level}, %{time}, %{file}, %{line}, %{message}
   # Example: "[%{level}] %{time} %{file}:%{line}: %{message}"
   format: "[%{level}] %{time} %{file}:%{line}: %{message}"
 
   # Time format for timestamp in logs
-  # 日志中时间戳的格式
   # Uses Go's time formatting: https://golang.org/pkg/time/#Time.Format
   # Example: "2006/01/02 15:04:05" (Year/Month/Day Hour:Minute:Second)
   time_format: "2006/01/02 15:04:05"
 
   # Log file rotation settings
-  # 日志文件轮转设置
   rotation:
     # Maximum size of log files in megabytes before rotating
-    # 单个日志文件的最大大小(MB)，超过后将轮转
     max_size: 10
 
     # Maximum number of old log files to retain
-    # 最多保留的旧日志文件数量
     max_backups: 30
 
     # Maximum number of days to retain old log files
-    # 旧日志文件最多保留的天数
     max_age: 90
 
     # Whether to compress rotated logs
-    # 是否压缩轮转的日志文件
     compress: true
 
 # Anti-Spam Settings
 antispam:
-  # Whether restrict premium user by default
-  # 是否默认限制Premium用户
+  # restrict premium user by default
   ban_premium: true
 
-  # Whether restrict random username by default
-  # 是否默认限制随机用户名用户
+  # restrict random username by default
   ban_random_username: true
 
-  # Whether restrict emojis in username by default
-  # 是否默认限制用户名中的表情符号用户
+  # restrict emojis in name by default
   ban_emoji_name: true
 
-  # Whether restrict suspicious links in bio by default
-  # 是否默认限制用户个人简介中包含可疑链接用户
+  # restrict suspicious links in bio by default
   ban_bio_link: true
 
-  # Whether to use CAS (Combot Anti-Spam) by default
-  # 是否默认使用CAS(Combot反垃圾系统)检查
+  # use CAS (Combot Anti-Spam) by default
   use_cas: true

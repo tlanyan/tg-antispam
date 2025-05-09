@@ -47,13 +47,11 @@ func Initialize(cfg *config.Config) error {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Get underlying SQL DB to configure connection pool
 	sqlDB, err := DB.DB()
 	if err != nil {
 		return fmt.Errorf("failed to get SQL DB: %w", err)
 	}
 
-	// Set connection pool settings
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
@@ -62,12 +60,10 @@ func Initialize(cfg *config.Config) error {
 	return nil
 }
 
-// GetDB returns the database connection
 func GetDB() *gorm.DB {
 	return DB
 }
 
-// IsEnabled returns true if database support is enabled
 func IsEnabled(cfg *config.Config) bool {
 	return cfg.Database.Enabled
 }

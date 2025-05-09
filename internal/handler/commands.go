@@ -14,9 +14,8 @@ import (
 	"tg-antispam/internal/storage"
 )
 
-// RegisterCommands registers all bot command handlers
+// registers all bot command handlers
 func RegisterCommands(bh *th.BotHandler, bot *telego.Bot) {
-	// Register command handler for all supported commands
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 		// Skip non-command messages
 		if !strings.HasPrefix(message.Text, "/") {
@@ -74,7 +73,6 @@ func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) e
 
 	var helpText string
 	if message.Chat.Type == "private" {
-		// In private chat, show full help text
 		helpText = fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
 			models.GetTranslation(language, "help_title"),
 			models.GetTranslation(language, "help_description"),
@@ -115,10 +113,8 @@ func handleSettingsCommand(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	language := models.LangSimplifiedChinese
 
 	if message.Chat.Type == "private" {
-		// In private chat, show group selection
 		return showGroupSelection(ctx, bot, message, "settings")
 	} else {
-		// In group chat, get group settings
 		groupInfo := service.GetGroupInfo(ctx.Context(), bot, message.Chat.ID)
 		if groupInfo.Language != "" {
 			language = groupInfo.Language
@@ -144,10 +140,8 @@ func handleSettingsCommand(ctx *th.Context, bot *telego.Bot, message telego.Mess
 // handleToggleCommand is a generic handler for all toggle commands
 func handleToggleCommand(ctx *th.Context, bot *telego.Bot, message telego.Message, action string) error {
 	if message.Chat.Type == "private" {
-		// In private chat, show group selection
 		return showGroupSelection(ctx, bot, message, action)
 	} else {
-		// In group chat, suggest using private chat
 		language := models.LangSimplifiedChinese
 		groupInfo := service.GetGroupInfo(ctx.Context(), bot, message.Chat.ID)
 		if groupInfo.Language != "" {
@@ -170,7 +164,6 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 	// Get the ID from the message
 	groupID, err := strconv.ParseInt(strings.TrimSpace(message.Text), 10, 64)
 	if err != nil {
-		// Not a valid number
 		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			Text:      "无效的群组ID，请输入数字ID",
@@ -179,12 +172,10 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 		return err
 	}
 
-	// Try to get information about the chat
 	chatInfo, err := bot.GetChat(ctx.Context(), &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: groupID},
 	})
 	if err != nil {
-		// Could not get chat info
 		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			Text:      "无法获取群组信息，请确保机器人已经加入该群组，并且您输入了正确的群组ID",
@@ -229,7 +220,6 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 		return err
 	}
 
-	// Check if the user is an admin in the group
 	isAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, message.From.ID)
 	if err != nil || !isAdmin {
 		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
@@ -240,12 +230,10 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 		return err
 	}
 
-	// Create or update the group info
 	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
 	groupInfo.AdminID = message.From.ID
 	service.UpdateGroupInfo(groupInfo)
 
-	// Send confirmation message
 	_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 		ChatID: telego.ChatID{ID: message.Chat.ID},
 		Text: fmt.Sprintf("✅ 成功添加群组: <b>%s</b>\n\n请使用 /settings 命令管理该群组",
@@ -258,11 +246,9 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 
 // showGroupSelection displays a list of groups for the user to select from
 func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message, action string) error {
-	// 用户ID
 	userID := message.From.ID
 	language := models.LangSimplifiedChinese
 
-	// 如果启用了数据库，从数据库中获取用户管理的群组
 	var adminGroups []*models.GroupInfo
 	var err error
 
@@ -273,6 +259,7 @@ func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message
 		adminGroups, err = groupRepo.GetGroupsByAdminID(userID)
 		if err != nil {
 			logger.Warningf("Error getting admin groups: %v", err)
+			return err
 		}
 	}
 

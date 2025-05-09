@@ -70,7 +70,6 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 		if newChatMember.MemberUser().ID == botID {
 			// Check if the bot's status was changed to admin
 			if newChatMember.MemberStatus() == telego.MemberStatusAdministrator {
-				// Record the user who promoted the bot to admin
 				logger.Infof("Bot was promoted to admin in chat %d by user %d", chatId, fromUser.ID)
 				groupInfo.IsAdmin = true
 				groupInfo.AdminID = fromUser.ID
@@ -167,7 +166,6 @@ func handleMyChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Up
 					// Create a temporary repository
 					groupRepository := storage.NewGroupRepository(storage.DB)
 
-					// Get all groups where this user is the admin
 					groups, err := groupRepository.GetGroupsByAdminID(userID)
 					if err != nil {
 						logger.Warningf("Error getting groups for admin %d: %v", userID, err)
@@ -178,7 +176,6 @@ func handleMyChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Up
 
 					// Update each group's notification setting in both cache and DB
 					for _, group := range groups {
-						// Update in memory first
 						group.EnableNotification = false
 						service.UpdateGroupInfo(group)
 

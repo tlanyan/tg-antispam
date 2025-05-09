@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config is the global configuration structure
+// global configuration structure
 type Config struct {
 	Bot      BotConfig      `mapstructure:"bot"`
 	Logger   LoggerConfig   `mapstructure:"logger"`
@@ -15,13 +15,13 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 }
 
-// BotConfig contains Telegram bot configuration
+// Telegram bot configuration
 type BotConfig struct {
 	Token   string        `mapstructure:"token"`
 	Webhook WebhookConfig `mapstructure:"webhook"`
 }
 
-// WebhookConfig contains webhook server configuration
+// webhook server configuration
 type WebhookConfig struct {
 	Endpoint   string `mapstructure:"endpoint"`
 	ListenPort string `mapstructure:"listen_port"`
@@ -30,7 +30,7 @@ type WebhookConfig struct {
 	KeyFile    string `mapstructure:"key_file"`
 }
 
-// LoggerConfig contains logging configuration
+// logging configuration
 type LoggerConfig struct {
 	Directory  string            `mapstructure:"directory"`
 	Rotation   LogRotationConfig `mapstructure:"rotation"`
@@ -40,7 +40,7 @@ type LoggerConfig struct {
 	Level      string            `mapstructure:"level"`
 }
 
-// LogRotationConfig contains log rotation settings
+// log rotation settings
 type LogRotationConfig struct {
 	MaxSize    int  `mapstructure:"max_size"`
 	MaxBackups int  `mapstructure:"max_backups"`
@@ -48,7 +48,6 @@ type LogRotationConfig struct {
 	Compress   bool `mapstructure:"compress"`
 }
 
-// DatabaseConfig contains database connection settings
 type DatabaseConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
 	Host     string `mapstructure:"host"`
@@ -59,7 +58,7 @@ type DatabaseConfig struct {
 	Charset  string `mapstructure:"charset"`
 }
 
-// AntispamConfig contains anti-spam feature settings
+// anti-spam feature settings
 type AntispamConfig struct {
 	BanRandomUsername bool `mapstructure:"ban_random_username"`
 	BanEmojiName      bool `mapstructure:"ban_emoji_name"`
@@ -68,10 +67,8 @@ type AntispamConfig struct {
 	BanPremium        bool `mapstructure:"ban_premium"`
 }
 
-// Global configuration instance
 var cfg *Config
 
-// Load loads configuration from file
 func Load(configPath string) (*Config, error) {
 	if configPath == "" {
 		return nil, fmt.Errorf("config file path is required")
@@ -79,13 +76,10 @@ func Load(configPath string) (*Config, error) {
 
 	v := viper.New()
 
-	// Set default values
 	setDefaults(v)
 
-	// Set config file
 	v.SetConfigFile(configPath)
 
-	// Read configuration file
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("error reading config file: %w", err)
 	}
@@ -101,7 +95,6 @@ func Load(configPath string) (*Config, error) {
 	return cfg, nil
 }
 
-// Get returns the global configuration instance
 func Get() *Config {
 	if cfg == nil {
 		log.Fatal("Configuration not initialized, call Load() first")
@@ -109,15 +102,12 @@ func Get() *Config {
 	return cfg
 }
 
-// setDefaults sets default configuration values
 func setDefaults(v *viper.Viper) {
-	// Bot defaults
 	v.SetDefault("bot.webhook.listen_port", "8443")
 	v.SetDefault("bot.webhook.debug_path", "/debug")
 	v.SetDefault("bot.webhook.cert_file", "")
 	v.SetDefault("bot.webhook.key_file", "")
 
-	// Logger defaults
 	v.SetDefault("logger.directory", "logs")
 	v.SetDefault("logger.rotation.max_size", 10)
 	v.SetDefault("logger.rotation.max_backups", 30)
@@ -128,20 +118,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("logger.time_format", "2006/01/02 15:04:05")
 	v.SetDefault("logger.level", "INFO")
 
-	// Database defaults
 	v.SetDefault("database.enabled", false)
-	v.SetDefault("database.host", "localhost")
-	v.SetDefault("database.port", 3306)
-	v.SetDefault("database.username", "root")
-	v.SetDefault("database.password", "")
-	v.SetDefault("database.dbname", "tgantispam")
-	v.SetDefault("database.charset", "utf8mb4")
 
-	// Antispam defaults
 	v.SetDefault("antispam.ban_random_username", true)
 	v.SetDefault("antispam.ban_emoji_name", true)
 	v.SetDefault("antispam.ban_bio_link", true)
 	v.SetDefault("antispam.use_cas", true)
 	v.SetDefault("antispam.ban_premium", true)
-	v.SetDefault("antispam.cache_size", 30)
 }
