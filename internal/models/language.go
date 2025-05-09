@@ -82,6 +82,9 @@ var Translations = map[string]Translation{
 		"warning_unban_button":     "解除限制",
 		"warning_user_unbanned":    "✅ 用户已成功解封",
 		"warning_unbanned_message": "✅ <b>用户已解封</b>\n用户 %s 已被解除限制，现在可以正常发言。",
+		"ban_user":                 "限制权限",
+		"user_banned":              "✅ 用户已被成功限制",
+		"warning_banned_message":   "⛔ <b>用户已被限制</b>\n用户 %s 已被限制发送消息和媒体的权限。",
 
 		// New translations for private chat mode
 		"please_use_private_chat": "请在私聊中使用此命令，以管理您的群组设置",
@@ -199,6 +202,9 @@ var Translations = map[string]Translation{
 		"warning_unban_button":     "解除限制",
 		"warning_user_unbanned":    "✅ 用戶已成功解封",
 		"warning_unbanned_message": "✅ <b>用戶已解封</b>\n用戶 %s 已被解除限制，現在可以正常發言。",
+		"ban_user":                 "限制權限",
+		"user_banned":              "✅ 用戶已被成功限制",
+		"warning_banned_message":   "⛔ <b>用戶已被限制</b>\n用戶 %s 已被限制發送消息和媒體的權限。",
 
 		// New translations for private chat mode
 		"please_use_private_chat": "請在私聊中使用此命令，以管理您的群組設置",
@@ -314,8 +320,11 @@ var Translations = map[string]Translation{
 		"warning_restricted":       "User %s has been restricted from sending messages and media",
 		"warning_reason":           "<b>Reason</b>: %s",
 		"warning_unban_button":     "Remove Restriction",
-		"warning_user_unbanned":    "✅ User has been successfully unrestricted",
-		"warning_unbanned_message": "✅ <b>User Unrestricted</b>\nUser %s has been unrestricted and can now send messages.",
+		"warning_user_unbanned":    "✅ User successfully unrestricted",
+		"warning_unbanned_message": "✅ <b>User Unrestricted</b>\nUser %s has been unrestricted and can now send messages normally.",
+		"ban_user":                 "Restrict User",
+		"user_banned":              "✅ User successfully restricted",
+		"warning_banned_message":   "⛔ <b>User Restricted</b>\nUser %s has been restricted from sending messages and media.",
 
 		// New translations for private chat mode
 		"please_use_private_chat": "Please use this command in a private chat with the bot to manage your group settings",

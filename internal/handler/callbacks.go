@@ -31,6 +31,8 @@ func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.Callback
 		return handleGroupSelectionCallback(ctx, bot, query)
 	} else if strings.HasPrefix(query.Data, "action:") {
 		return handleActionSelectionCallback(ctx, bot, query)
+	} else if strings.HasPrefix(query.Data, "ban:") {
+		return handleBanCallback(ctx, bot, query)
 	}
 
 	return nil
@@ -38,23 +40,9 @@ func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.Callback
 
 // handleUnbanCallback processes a request to unban a user
 func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
-	// Parse the callback data: unban:chatID:userID
-	parts := strings.Split(query.Data, ":")
-	if len(parts) != 3 {
-		logger.Warningf("Invalid callback data in unban callback: %s", parts)
-		return nil
-	}
-
-	// Parse chat ID and user ID
-	chatID, err := strconv.ParseInt(parts[1], 10, 64)
+	chatID, userID, err := getGroupAndUserID(query.Data)
 	if err != nil {
-		logger.Warningf("Invalid chat ID in unban callback: %v", err)
-		return nil
-	}
-
-	userID, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil {
-		logger.Warningf("Invalid user ID in unban callback: %v", err)
+		logger.Warningf("Invalid callback data in unban callback: %s", query.Data)
 		return nil
 	}
 
@@ -89,32 +77,108 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 		logger.Warningf("Error answering callback query: %v", err)
 	}
 
-	// Get user information
-	userInfo, err := bot.GetChat(ctx.Context(), &telego.GetChatParams{
-		ChatID: telego.ChatID{ID: userID},
-	})
+	linkedUserName, err := getLinkedUserName(ctx, bot, userID)
 	if err != nil {
-		logger.Infof("Error getting user info: %v", err)
-		return nil
+		logger.Warningf("Error getting linked user name: %v", err)
+		return err
 	}
-
-	userName := userInfo.FirstName
-	if userInfo.LastName != "" {
-		userName += " " + userInfo.LastName
-	}
-
-	// Create user link
-	userLink := fmt.Sprintf("tg://user?id=%d", userID)
-	linkedUserName := fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, userName)
 
 	// Update the message to reflect that the user was unbanned
 	if query.Message != nil {
 		if accessibleMsg, ok := query.Message.(*telego.Message); ok {
+			// Create ban button
+			banButton := telego.InlineKeyboardButton{
+				Text:         models.GetTranslation(language, "ban_user"),
+				CallbackData: fmt.Sprintf("ban:%d:%d", chatID, userID),
+			}
+			keyboard := [][]telego.InlineKeyboardButton{
+				{banButton},
+			}
+
 			bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
-				ChatID:    telego.ChatID{ID: accessibleMsg.Chat.ID},
-				MessageID: accessibleMsg.MessageID,
-				Text:      fmt.Sprintf(models.GetTranslation(language, "warning_unbanned_message"), linkedUserName),
-				ParseMode: "HTML",
+				ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
+				MessageID:   accessibleMsg.MessageID,
+				Text:        fmt.Sprintf(models.GetTranslation(language, "warning_unbanned_message"), linkedUserName),
+				ParseMode:   "HTML",
+				ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
+			})
+		}
+	}
+
+	return err
+}
+
+// handleBanCallback processes a request to ban a user
+func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+	chatID, userID, err := getGroupAndUserID(query.Data)
+	if err != nil {
+		logger.Warningf("Invalid callback data in ban callback: %s", query.Data)
+		return nil
+	}
+
+	// Check if the callback sender is an admin in the chat
+	isAdmin, err := isUserAdmin(ctx.Context(), bot, chatID, query.From.ID)
+	if err != nil || !isAdmin {
+		// Inform user they don't have permission
+		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            "You don't have permission to ban users.",
+			ShowAlert:       true,
+		})
+		return err
+	}
+
+	// Get group info for language
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, chatID)
+	language := models.LangSimplifiedChinese
+	if groupInfo != nil && groupInfo.Language != "" {
+		language = groupInfo.Language
+	}
+
+	// Restrict the user (ban from sending messages and media)
+	err = bot.RestrictChatMember(ctx.Context(), &telego.RestrictChatMemberParams{
+		ChatID:      telego.ChatID{ID: chatID},
+		UserID:      userID,
+		Permissions: telego.ChatPermissions{},
+	})
+	if err != nil {
+		logger.Warningf("Error restricting user: %v", err)
+		return err
+	}
+
+	// Notify the admin that the action was successful
+	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		CallbackQueryID: query.ID,
+		Text:            models.GetTranslation(language, "user_banned"),
+	})
+	if err != nil {
+		logger.Warningf("Error answering callback query: %v", err)
+	}
+
+	linkedUserName, err := getLinkedUserName(ctx, bot, userID)
+	if err != nil {
+		logger.Warningf("Error getting linked user name: %v", err)
+		return err
+	}
+
+	// Update the message to reflect that the user was banned
+	if query.Message != nil {
+		if accessibleMsg, ok := query.Message.(*telego.Message); ok {
+			// Create unban button
+			unbanButton := telego.InlineKeyboardButton{
+				Text:         models.GetTranslation(language, "unban_user"),
+				CallbackData: fmt.Sprintf("unban:%d:%d", chatID, userID),
+			}
+			keyboard := [][]telego.InlineKeyboardButton{
+				{unbanButton},
+			}
+
+			bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+				ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
+				MessageID:   accessibleMsg.MessageID,
+				Text:        fmt.Sprintf(models.GetTranslation(language, "warning_banned_message"), linkedUserName),
+				ParseMode:   "HTML",
+				ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
 			})
 		}
 	}
