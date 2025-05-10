@@ -40,14 +40,15 @@ func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.Callback
 
 // handleUnbanCallback processes a request to unban a user
 func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
-	chatID, userID, err := getGroupAndUserID(query.Data)
+	groupID, userID, err := getGroupAndUserID(query.Data)
 	if err != nil {
 		logger.Warningf("Invalid callback data in unban callback: %s", query.Data)
 		return nil
 	}
 
+	logger.Infof("Unban callback received: %+v, groupID=%d, userID=%d", query, groupID, userID)
 	// Check if the callback sender is an admin in the chat
-	isAdmin, err := isUserAdmin(ctx.Context(), bot, chatID, query.From.ID)
+	isAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
 	if err != nil || !isAdmin {
 		// Inform user they don't have permission
 		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
@@ -59,10 +60,10 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 	}
 
 	// Unrestrict the user
-	UnrestrictUser(ctx.Context(), bot, chatID, userID)
+	UnrestrictUser(ctx.Context(), bot, groupID, userID)
 
 	// Get group info for language
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, chatID)
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
 	language := models.LangSimplifiedChinese
 	if groupInfo != nil && groupInfo.Language != "" {
 		language = groupInfo.Language
@@ -89,7 +90,7 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 			// Create ban button
 			banButton := telego.InlineKeyboardButton{
 				Text:         models.GetTranslation(language, "ban_user"),
-				CallbackData: fmt.Sprintf("ban:%d:%d", chatID, userID),
+				CallbackData: fmt.Sprintf("ban:%d:%d", groupID, userID),
 			}
 			keyboard := [][]telego.InlineKeyboardButton{
 				{banButton},
@@ -110,14 +111,15 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 
 // handleBanCallback processes a request to ban a user
 func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
-	chatID, userID, err := getGroupAndUserID(query.Data)
+	groupID, userID, err := getGroupAndUserID(query.Data)
 	if err != nil {
 		logger.Warningf("Invalid callback data in ban callback: %s", query.Data)
 		return nil
 	}
 
+	logger.Infof("Ban callback received: %+v, groupID=%d, userID=%d", query, groupID, userID)
 	// Check if the callback sender is an admin in the chat
-	isAdmin, err := isUserAdmin(ctx.Context(), bot, chatID, query.From.ID)
+	isAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
 	if err != nil || !isAdmin {
 		// Inform user they don't have permission
 		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
@@ -129,7 +131,7 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 	}
 
 	// Get group info for language
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, chatID)
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
 	language := models.LangSimplifiedChinese
 	if groupInfo != nil && groupInfo.Language != "" {
 		language = groupInfo.Language
@@ -137,7 +139,7 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 
 	// Restrict the user (ban from sending messages and media)
 	err = bot.RestrictChatMember(ctx.Context(), &telego.RestrictChatMemberParams{
-		ChatID:      telego.ChatID{ID: chatID},
+		ChatID:      telego.ChatID{ID: groupID},
 		UserID:      userID,
 		Permissions: telego.ChatPermissions{},
 	})
@@ -167,7 +169,7 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 			// Create unban button
 			unbanButton := telego.InlineKeyboardButton{
 				Text:         models.GetTranslation(language, "unban_user"),
-				CallbackData: fmt.Sprintf("unban:%d:%d", chatID, userID),
+				CallbackData: fmt.Sprintf("unban:%d:%d", groupID, userID),
 			}
 			keyboard := [][]telego.InlineKeyboardButton{
 				{unbanButton},
@@ -196,24 +198,25 @@ func handleLanguageCallback(ctx *th.Context, bot *telego.Bot, query telego.Callb
 	}
 
 	language := parts[1]
-	chatID, err := strconv.ParseInt(parts[2], 10, 64)
+	groupID, err := strconv.ParseInt(parts[2], 10, 64)
 	if err != nil {
 		logger.Warningf("Invalid chat ID in language callback: %v", err)
 		return nil
 	}
 
 	// 直接传递变量给setLanguage函数处理
-	return setLanguage(ctx, bot, query, chatID, language)
+	return setLanguage(ctx, bot, query, groupID, language)
 }
 
 // setLanguage updates the language setting for a group
-func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, chatID int64, language string) error {
+func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, groupID int64, language string) error {
+	logger.Infof("Setting language for group: %d, language: %s", groupID, language)
 	// Get the group info
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, chatID)
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
 
 	// Check if the user is an admin
 	if groupInfo.AdminID != query.From.ID {
-		isAdmin, err := isUserAdmin(ctx.Context(), bot, chatID, query.From.ID)
+		isAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
 		if err != nil || !isAdmin {
 			// Inform user they don't have permission
 			err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
@@ -229,40 +232,36 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, c
 	groupInfo.Language = language
 	service.UpdateGroupInfo(groupInfo)
 
-	if query.ID != "" {
-		// Notify about the change
-		err := bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
-			CallbackQueryID: query.ID,
-			Text:            fmt.Sprintf(models.GetTranslation(language, "language_updated"), getLanguageName(language)),
-		})
-		if err != nil {
-			logger.Warningf("Error answering callback query: %v", err)
-		}
-
-		// Update the settings message using the new shared function
-		// The groupID is chatID in this context for settings callbacks
-		settingsText, keyboard := buildGroupSettingsMessageParts(groupInfo, language, chatID)
-
-		// Update the message
-		if query.Message != nil {
-			if accessibleMsg, ok := query.Message.(*telego.Message); ok {
-				_, editErr := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
-					ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
-					MessageID:   accessibleMsg.MessageID,
-					Text:        settingsText,
-					ParseMode:   "HTML",
-					ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
-				})
-				if editErr != nil {
-					logger.Warningf("Error editing settings message: %v", editErr)
-				}
-			}
-		}
-
-		return err
+	// Notify about the change
+	err := bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		CallbackQueryID: query.ID,
+		Text:            fmt.Sprintf(models.GetTranslation(language, "language_updated"), getLanguageName(language)),
+	})
+	if err != nil {
+		logger.Warningf("Error answering callback query: %v", err)
 	}
 
-	return nil
+	// Update the settings message using the new shared function
+	// The groupID is chatID in this context for settings callbacks
+	settingsText, keyboard := buildGroupSettingsMessageParts(groupInfo, language, groupID)
+
+	// Update the message
+	if query.Message != nil {
+		if accessibleMsg, ok := query.Message.(*telego.Message); ok {
+			_, editErr := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+				ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
+				MessageID:   accessibleMsg.MessageID,
+				Text:        settingsText,
+				ParseMode:   "HTML",
+				ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
+			})
+			if editErr != nil {
+				logger.Warningf("Error editing settings message: %v", editErr)
+			}
+		}
+	}
+
+	return err
 }
 
 // getLanguageName returns the display name of a language code
@@ -384,7 +383,7 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 		return nil
 	}
 
-	logger.Infof("Action selection callback received: %+v", query)
+	logger.Infof("Action selection callback received: %+v, groupID=%d", query, groupID)
 
 	if query.ID != "" {
 		// 通知用户已收到请求

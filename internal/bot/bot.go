@@ -94,7 +94,7 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 	langCodes := map[string]string{
 		models.LangEnglish:            "en",
 		models.LangSimplifiedChinese:  "zh",
-		models.LangTraditionalChinese: "zh-hant",
+		models.LangTraditionalChinese: "zh-TW",
 	}
 
 	// Set commands for each supported language

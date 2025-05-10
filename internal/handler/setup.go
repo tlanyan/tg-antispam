@@ -20,11 +20,12 @@ func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
 	service.InitGroupRepository()
 
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
-		err := RegisterCommands(ctx, bot, message)
-		if err == nil {
-			return handleIncomingMessage(ctx, bot, message)
+		ok, err := RegisterCommands(ctx, bot, message)
+		if ok {
+			return err
 		}
-		return err
+
+		return handleIncomingMessage(ctx, bot, message)
 	})
 
 	bh.HandleChannelPost(func(ctx *th.Context, message telego.Message) error {
