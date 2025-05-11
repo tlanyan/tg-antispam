@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mymmrac/telego"
 
@@ -177,35 +178,82 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 		fmt.Sprintf(models.GetTranslation(language, "warning_reason"), models.GetTranslation(language, reason)),
 	)
 
-	var markup *telego.InlineKeyboardMarkup
-	unbanButtonText := models.GetTranslation(groupInfo.Language, "warning_unban_button")
-	markup = &telego.InlineKeyboardMarkup{
-		InlineKeyboard: [][]telego.InlineKeyboardButton{
-			{
-				{
-					Text:         unbanButtonText,
-					CallbackData: fmt.Sprintf("unban:%d:%d", groupInfo.GroupID, user.ID),
-				},
+	// Send notification to admin chat if it exists
+	if groupInfo.AdminID > 0 {
+		// Create admin unban button
+		adminUnbanButton := telego.InlineKeyboardButton{
+			Text:         models.GetTranslation(groupInfo.Language, "warning_unban_button"),
+			CallbackData: fmt.Sprintf("unban:%d:%d", groupInfo.GroupID, user.ID),
+		}
+		adminMarkup := &telego.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telego.InlineKeyboardButton{
+				{adminUnbanButton},
 			},
+		}
+
+		_, err := bot.SendMessage(ctx, &telego.SendMessageParams{
+			ChatID:      telego.ChatID{ID: groupInfo.AdminID},
+			Text:        message,
+			ParseMode:   "HTML",
+			ReplyMarkup: adminMarkup,
+		})
+		if err != nil {
+			logger.Warningf("Error sending warning message to admin: %v", err)
+		}
+	}
+
+	// Get bot username to create the deep link
+	botInfo, err := bot.GetMe(ctx)
+	if err != nil {
+		logger.Warningf("Error getting bot info: %v", err)
+		return
+	}
+
+	// Send notification to the group with a link to the bot's private chat
+	selfUnbanMessage := fmt.Sprintf(
+		models.GetTranslation(language, "warning_self_unban_instruction"),
+		userLink,
+	)
+
+	// Create URL button to open private chat with the bot
+	// Using deep linking to pass group ID and user ID
+	startParam := fmt.Sprintf("unban_%d_%d", groupInfo.GroupID, user.ID)
+	botURL := fmt.Sprintf("https://t.me/%s?start=%s", botInfo.Username, startParam)
+
+	selfUnbanButton := telego.InlineKeyboardButton{
+		Text: models.GetTranslation(groupInfo.Language, "warning_self_unban_button"),
+		URL:  botURL,
+	}
+	selfUnbanMarkup := &telego.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telego.InlineKeyboardButton{
+			{selfUnbanButton},
 		},
 	}
 
-	// Send notification to admin chat if it exists
-	chatID := groupInfo.GroupID
-	if groupInfo.AdminID > 0 {
-		chatID = groupInfo.AdminID
-	}
-
-	_, err := bot.SendMessage(ctx, &telego.SendMessageParams{
-		ChatID:      telego.ChatID{ID: chatID},
-		Text:        message,
+	// Send notification to the group
+	msg, err := bot.SendMessage(ctx, &telego.SendMessageParams{
+		ChatID:      telego.ChatID{ID: groupInfo.GroupID},
+		Text:        selfUnbanMessage,
 		ParseMode:   "HTML",
-		ReplyMarkup: markup,
+		ReplyMarkup: selfUnbanMarkup,
 	})
 
 	if err != nil {
-		logger.Warningf("Error sending warning message: %v", err)
+		logger.Warningf("Error sending warning message to group: %v", err)
+		return
 	}
+
+	// Delete the group message after 3 minutes
+	go func() {
+		time.Sleep(3 * time.Minute)
+		err := bot.DeleteMessage(ctx, &telego.DeleteMessageParams{
+			ChatID:    telego.ChatID{ID: groupInfo.GroupID},
+			MessageID: msg.MessageID,
+		})
+		if err != nil {
+			logger.Warningf("Error deleting warning message: %v", err)
+		}
+	}()
 }
 
 // UnrestrictUser removes restrictions from a user in a chat

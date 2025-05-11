@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,12 @@ import (
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
 )
+
+// verificationAnswers stores pending math verification answers with group IDs
+var verificationAnswers = make(map[int64]struct {
+	Answer  int
+	GroupID int64
+})
 
 // HandleCallbackQuery processes callback queries from inline keyboards
 func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
@@ -25,6 +32,8 @@ func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.Callback
 	// Handle different callback types based on prefix
 	if strings.HasPrefix(query.Data, "unban:") {
 		return handleUnbanCallback(ctx, bot, query)
+	} else if strings.HasPrefix(query.Data, "self_unban:") {
+		return handleSelfUnbanCallback(ctx, bot, query)
 	} else if strings.HasPrefix(query.Data, "lang:") {
 		return handleLanguageCallback(ctx, bot, query)
 	} else if strings.HasPrefix(query.Data, "group:") {
@@ -572,4 +581,148 @@ func showLanguageSelection(ctx *th.Context, bot *telego.Bot, query telego.Callba
 		}
 	}
 	return nil
+}
+
+// handleSelfUnbanCallback processes a request for a user to unban themselves
+func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+	groupID, userID, err := getGroupAndUserID(query.Data)
+	if err != nil {
+		logger.Warningf("Invalid callback data in self-unban callback: %s", query.Data)
+		return nil
+	}
+
+	// Verify that the user clicking the button is the restricted user
+	if query.From.ID != userID {
+		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            "只有被限制的用户才能使用此功能。",
+			ShowAlert:       true,
+		})
+		return err
+	}
+
+	// Generate a random math problem
+	num1 := rand.Intn(100)
+	num2 := rand.Intn(100)
+	operators := []string{"+", "-", "*"}
+	operator := operators[rand.Intn(len(operators))]
+
+	// Calculate the correct answer
+	var correctAnswer int
+	switch operator {
+	case "+":
+		correctAnswer = num1 + num2
+	case "-":
+		correctAnswer = num1 - num2
+	case "*":
+		correctAnswer = num1 * num2
+	}
+
+	// Store the answer in a temporary map (in a real implementation, you'd want to use a proper storage solution)
+	verificationAnswers[query.From.ID] = struct {
+		Answer  int
+		GroupID int64
+	}{correctAnswer, groupID}
+
+	// Get group info for language
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
+	language := models.LangSimplifiedChinese
+	if groupInfo != nil && groupInfo.Language != "" {
+		language = groupInfo.Language
+	}
+
+	// Send the math problem to the user
+	_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+		ChatID:    telego.ChatID{ID: query.From.ID},
+		Text:      fmt.Sprintf(models.GetTranslation(language, "math_verification"), num1, operator, num2),
+		ParseMode: "HTML",
+	})
+
+	if err != nil {
+		logger.Warningf("Error sending math verification message: %v", err)
+		return err
+	}
+
+	// Answer the callback query
+	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		CallbackQueryID: query.ID,
+	})
+	if err != nil {
+		logger.Warningf("Error answering callback query: %v", err)
+	}
+
+	return nil
+}
+
+// HandleMathVerification processes the user's answer to the math verification
+func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	// Check if the user has a pending verification
+	expectedAnswer, exists := verificationAnswers[message.From.ID]
+	if !exists {
+		return nil // No pending verification
+	}
+
+	// Parse the user's answer
+	userAnswer, err := strconv.Atoi(strings.TrimSpace(message.Text))
+	if err != nil {
+		// Not a valid number, ignore
+		return nil
+	}
+
+	// Get group info for language
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, expectedAnswer.GroupID)
+	language := models.LangSimplifiedChinese
+	if groupInfo != nil && groupInfo.Language != "" {
+		language = groupInfo.Language
+	}
+
+	// Check if the answer is correct
+	if userAnswer == expectedAnswer.Answer {
+		// Remove the verification from the map
+		delete(verificationAnswers, message.From.ID)
+
+		// Find the group ID from deep link params
+		// This is a simplification - in a real implementation, you'd need to store the group ID with the verification
+		// Note: We may need to be more creative on how to store this information
+		groupID := expectedAnswer.GroupID
+
+		if groupID == 0 {
+			// Fallback: if we can't determine the group, use group info if available
+			if groupInfo != nil {
+				groupID = groupInfo.GroupID
+			}
+		}
+
+		if groupID != 0 {
+			// Unrestrict the user in the group
+			UnrestrictUser(ctx.Context(), bot, groupID, message.From.ID)
+
+			// Send success message
+			_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+				ChatID:    telego.ChatID{ID: message.Chat.ID},
+				Text:      models.GetTranslation(language, "math_verification_success"),
+				ParseMode: "HTML",
+			})
+		} else {
+			// We couldn't determine which group to unban from
+			_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+				ChatID:    telego.ChatID{ID: message.Chat.ID},
+				Text:      "验证成功，但无法确定需要解封的群组。请联系管理员解决。",
+				ParseMode: "HTML",
+			})
+		}
+	} else {
+		// Send failure message
+		_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID:    telego.ChatID{ID: message.Chat.ID},
+			Text:      models.GetTranslation(language, "math_verification_failed"),
+			ParseMode: "HTML",
+		})
+	}
+
+	if err != nil {
+		logger.Warningf("Error sending verification result message: %v", err)
+	}
+
+	return err
 }

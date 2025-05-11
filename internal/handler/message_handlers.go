@@ -1,20 +1,63 @@
 package handler
 
 import (
+	"fmt"
+	"math/rand"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
 
 	"tg-antispam/internal/logger"
+	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
 	"tg-antispam/internal/storage"
 )
+
+// unbannParamRegex matches the format "unban_groupID_userID"
+var unbannParamRegex = regexp.MustCompile(`^unban_(-?\d+)_(\d+)$`)
+
+// External reference to the verification map defined in callbacks.go
+// var verificationAnswers map[int64]int
 
 // handleIncomingMessage processes new messages in chats
 func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
 	// Skip if no sender information or sender is a bot
 	if message.From == nil || message.From.IsBot {
+		return nil
+	}
+
+	// Check for math verification answers first
+	if message.Chat.Type == "private" {
+		// Handle /start command with parameters for self-unban
+		if message.Text != "" && strings.HasPrefix(message.Text, "/start ") {
+			startParam := strings.TrimPrefix(message.Text, "/start ")
+			// Check if this is an unban request
+			if matches := unbannParamRegex.FindStringSubmatch(startParam); matches != nil {
+				groupID, _ := strconv.ParseInt(matches[1], 10, 64)
+				userID, _ := strconv.ParseInt(matches[2], 10, 64)
+
+				// Verify that the user requesting unban is the same user who was banned
+				if message.From.ID != userID {
+					_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+						ChatID: telego.ChatID{ID: message.Chat.ID},
+						Text:   "您不能为其他用户解除限制。",
+					})
+					return err
+				}
+
+				return handleSelfUnbanStart(ctx, bot, message, groupID, userID)
+			}
+
+			// If not an unban request, continue with normal processing
+		}
+
+		// Check for pending math verification answer
+		if err := HandleMathVerification(ctx, bot, message); err != nil {
+			logger.Warningf("Error handling math verification: %v", err)
+		}
 		return nil
 	}
 
@@ -47,6 +90,52 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	}
 
 	return nil
+}
+
+// handleSelfUnbanStart processes a self-unban request from a /start command
+func handleSelfUnbanStart(ctx *th.Context, bot *telego.Bot, message telego.Message, groupID int64, userID int64) error {
+	// Get group info for language
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
+	language := models.LangSimplifiedChinese
+	if groupInfo != nil && groupInfo.Language != "" {
+		language = groupInfo.Language
+	}
+
+	// Generate a random math problem
+	num1 := rand.Intn(100)
+	num2 := rand.Intn(100)
+	operators := []string{"+", "-", "*"}
+	operator := operators[rand.Intn(len(operators))]
+
+	// Calculate the correct answer
+	var correctAnswer int
+	switch operator {
+	case "+":
+		correctAnswer = num1 + num2
+	case "-":
+		correctAnswer = num1 - num2
+	case "*":
+		correctAnswer = num1 * num2
+	}
+
+	// Store the answer and group ID in the verification map
+	verificationAnswers[userID] = struct {
+		Answer  int
+		GroupID int64
+	}{correctAnswer, groupID}
+
+	// Send the math problem to the user
+	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+		ChatID:    telego.ChatID{ID: message.Chat.ID},
+		Text:      fmt.Sprintf(models.GetTranslation(language, "math_verification"), num1, operator, num2),
+		ParseMode: "HTML",
+	})
+
+	if err != nil {
+		logger.Warningf("Error sending math verification message: %v", err)
+	}
+
+	return err
 }
 
 // handleChatMemberUpdate processes updates to chat members
