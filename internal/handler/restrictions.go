@@ -246,7 +246,7 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 	// Delete the group message after 3 minutes
 	go func() {
 		time.Sleep(3 * time.Minute)
-		err := bot.DeleteMessage(ctx, &telego.DeleteMessageParams{
+		err := bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
 			ChatID:    telego.ChatID{ID: groupInfo.GroupID},
 			MessageID: msg.MessageID,
 		})

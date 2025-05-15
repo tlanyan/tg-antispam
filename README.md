@@ -130,6 +130,7 @@ Webhook 模式允许机器人实时接收消息更新，能更好地捕获被其
    - `bot.webhook.port`: 程序监听端口号，默认为 "8443"
    - `bot.webhook.cert_file`: SSL 证书文件路径（如果直接监听 webhook 回调地址端口）
    - `bot.webhook.key_file`: SSL 密钥文件路径（如果直接监听 webhook 回调地址端口）
+   - `bot.group_id`: 只处理指定群组的消息，-1 表示处理所有群组
 
 4. **使用 Nginx 等反向代理**：
 

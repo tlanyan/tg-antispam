@@ -19,6 +19,7 @@ type Config struct {
 type BotConfig struct {
 	Token   string        `mapstructure:"token"`
 	Webhook WebhookConfig `mapstructure:"webhook"`
+	GroupID int64         `mapstructure:"group_id"`
 }
 
 // webhook server configuration
@@ -107,6 +108,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("bot.webhook.debug_path", "/debug")
 	v.SetDefault("bot.webhook.cert_file", "")
 	v.SetDefault("bot.webhook.key_file", "")
+
+	v.SetDefault("bot.group_id", -1)
 
 	v.SetDefault("logger.directory", "logs")
 	v.SetDefault("logger.rotation.max_size", 10)
