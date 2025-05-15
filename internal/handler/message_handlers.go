@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -59,6 +60,20 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 			logger.Warningf("Error handling math verification: %v", err)
 		}
 		return nil
+	}
+
+	if message.Chat.ID > 0 {
+		// 获取并打印调用堆栈
+		stackTrace := string(debug.Stack())
+		logger.Infof("处理私聊消息的调用堆栈: %s", stackTrace)
+
+		// Prompt user to send /help command
+		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID:    telego.ChatID{ID: message.Chat.ID},
+			Text:      "请发送 /help 获取使用帮助。",
+			ParseMode: "HTML",
+		})
+		return err
 	}
 
 	groupInfo := service.GetGroupInfo(ctx, bot, message.Chat.ID)
