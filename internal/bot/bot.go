@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -93,8 +94,8 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 	// Map of language codes to Telegram language codes
 	langCodes := map[string]string{
 		models.LangEnglish:            "en",
-		models.LangSimplifiedChinese:  "zh",
-		models.LangTraditionalChinese: "zh-TW",
+		models.LangSimplifiedChinese:  "zh-Hans",
+		models.LangTraditionalChinese: "zh-Hant",
 	}
 
 	// Set commands for each supported language
@@ -108,12 +109,11 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 			})
 		}
 
-		err := bot.SetMyCommands(ctx, &telego.SetMyCommandsParams{
+		params := &telego.SetMyCommandsParams{
 			Commands:     commands,
 			LanguageCode: telegramLang,
-		})
-
-		if err != nil {
+		}
+		if err := setCommandsWithRetry(ctx, bot, 1, params); err != nil {
 			logger.Infof("Warning: Failed to set bot commands for %s: %v", lang, err)
 		}
 	}
@@ -127,11 +127,27 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 		})
 	}
 
-	err := bot.SetMyCommands(ctx, &telego.SetMyCommandsParams{
+	params := &telego.SetMyCommandsParams{
 		Commands: defaultCommands,
-	})
-
-	if err != nil {
+	}
+	if err := setCommandsWithRetry(ctx, bot, 3, params); err != nil {
 		logger.Infof("Warning: Failed to set default bot commands: %v", err)
 	}
+}
+
+// setCommandsWithRetry tries to set bot commands, retrying up to 3 times with a 5-minute delay on failure.
+func setCommandsWithRetry(ctx context.Context, bot *telego.Bot, maxRetries int, params *telego.SetMyCommandsParams) error {
+	const retryDelay = 5 * time.Minute
+	var err error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err = bot.SetMyCommands(ctx, params)
+		if err == nil {
+			return nil
+		}
+		if attempt < maxRetries {
+			logger.Infof("Warning: Failed to set bot commands (attempt %d/%d): %v. Retrying in %v", attempt, maxRetries, err, retryDelay)
+			time.Sleep(retryDelay)
+		}
+	}
+	return fmt.Errorf("failed to set bot commands after %d attempts: %w", maxRetries, err)
 }
