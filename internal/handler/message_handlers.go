@@ -108,6 +108,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 					shouldRestrict = true
 					reason = "reason_ai_spam"
 				}
+				logger.Infof("AI check message: %s, result: %t", message.Text, isSpam)
 			}
 		}
 	}
