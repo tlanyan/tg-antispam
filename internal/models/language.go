@@ -109,6 +109,7 @@ var Translations = map[string]Translation{
 		"reason_emoji_name":      "姓名含有表情符号",
 		"reason_bio_link":        "个人简介包含可疑链接",
 		"reason_cas_blacklisted": "用户在 CAS 黑名单中",
+		"reason_ai_spam":         "被 AI 判定为垃圾消息",
 
 		// Toggle action response messages
 		"premium_ban_enabled":          "已启用默认封禁Premium用户",
@@ -233,6 +234,7 @@ var Translations = map[string]Translation{
 		"reason_emoji_name":      "姓名含有表情符號",
 		"reason_bio_link":        "個人簡介包含可疑連結",
 		"reason_cas_blacklisted": "用戶在 CAS 黑名單中",
+		"reason_ai_spam":         "被 AI 判定為垃圾訊息",
 
 		// Toggle action response messages
 		"premium_ban_enabled":          "已啟用默認封禁Premium用戶",
@@ -357,6 +359,7 @@ var Translations = map[string]Translation{
 		"reason_emoji_name":      "Name contains emojis",
 		"reason_bio_link":        "Bio contains suspicious links",
 		"reason_cas_blacklisted": "User is on the CAS blacklist",
+		"reason_ai_spam":         "Classified as spam by AI",
 
 		// Toggle action response messages
 		"premium_ban_enabled":          "Premium user ban enabled",

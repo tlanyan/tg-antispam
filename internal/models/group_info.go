@@ -20,6 +20,7 @@ type GroupInfo struct {
 	BanEmojiName       bool   `gorm:"default:true"`
 	BanBioLink         bool   `gorm:"default:true"`
 	EnableCAS          bool   `gorm:"default:true"`
+	EnableAicheck      bool   `gorm:"default:false"`
 	Language           string `gorm:"default:zh_CN"`
 	CreatedAt          time.Time
 	UpdatedAt          time.Time

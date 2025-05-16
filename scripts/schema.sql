@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS `group_info` (
   `ban_emoji_name` tinyint(1) DEFAULT 1,
   `ban_bio_link` tinyint(1) DEFAULT 1,
   `enable_cas` tinyint(1) DEFAULT 1,
+  `enable_aicheck` tinyint(1) DEFAULT 0,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),

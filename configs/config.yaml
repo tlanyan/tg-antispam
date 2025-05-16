@@ -96,3 +96,8 @@ antispam:
 
   # use CAS (Combot Anti-Spam) by default
   use_cas: true
+
+# Gemini API Configuration
+ai_api:
+  # Gemini 1.5 Pro API Key
+  gemini_api_key: ""

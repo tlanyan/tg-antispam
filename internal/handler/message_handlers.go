@@ -72,7 +72,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	if message.Chat.ID > 0 {
 		// 获取并打印调用堆栈
 		stackTrace := string(debug.Stack())
-		logger.Infof("处理私聊消息的调用堆栈: %s", stackTrace)
+		logger.Infof("private chat message call stack: %s", stackTrace)
 
 		// Prompt user to send /help command
 		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
@@ -85,7 +85,6 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 
 	groupInfo := service.GetGroupInfo(ctx, bot, message.Chat.ID)
 	if !groupInfo.IsAdmin {
-		logger.Infof("bot is not an admin for chat ID: %d", message.Chat.ID)
 		return nil
 	}
 	logger.Infof("Processing message: %+v", message)
@@ -95,11 +94,26 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	reason := ""
 
 	// @TODO: more rules
-	if strings.Contains(message.Text, "https://t.me/") {
+	if strings.Contains(message.Text, "https://t.me/") || message.ForwardOrigin != nil {
+		logger.Infof("suspicious message: %+v, request cas", message)
 		shouldRestrict, reason = CasRequest(message.From.ID)
+
+		if !shouldRestrict && groupInfo.EnableAicheck {
+			// 请求gemini 1.5 pro api 判断是否是垃圾信息
+			if cfg.AiApi.GeminiApiKey != "" {
+				isSpam, err := ClassifyWithGemini(cfg.AiApi.GeminiApiKey, message.Text)
+				if err != nil {
+					logger.Warningf("Error classifying message with Gemini: %v", err)
+				} else if isSpam {
+					shouldRestrict = true
+					reason = "reason_ai_spam"
+				}
+			}
+		}
 	}
 
 	if shouldRestrict {
+		logger.Infof("suspicious message: %+v, delete and restrict user: %d", message, message.From.ID)
 		bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			MessageID: message.MessageID,

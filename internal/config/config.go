@@ -13,6 +13,7 @@ type Config struct {
 	Logger   LoggerConfig   `mapstructure:"logger"`
 	Antispam AntispamConfig `mapstructure:"antispam"`
 	Database DatabaseConfig `mapstructure:"database"`
+	AiApi    AiApiConfig    `mapstructure:"ai_api"`
 }
 
 // Telegram bot configuration
@@ -66,6 +67,10 @@ type AntispamConfig struct {
 	BanBioLink        bool `mapstructure:"ban_bio_link"`
 	UseCAS            bool `mapstructure:"use_cas"`
 	BanPremium        bool `mapstructure:"ban_premium"`
+}
+
+type AiApiConfig struct {
+	GeminiApiKey string `mapstructure:"gemini_api_key"`
 }
 
 var cfg *Config
@@ -128,4 +133,5 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("antispam.ban_bio_link", true)
 	v.SetDefault("antispam.use_cas", true)
 	v.SetDefault("antispam.ban_premium", true)
+	v.SetDefault("ai_api.gemini_api_key", "")
 }
