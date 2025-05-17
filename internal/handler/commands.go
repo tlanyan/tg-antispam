@@ -22,7 +22,7 @@ func RegisterCommands(ctx *th.Context, bot *telego.Bot, message telego.Message) 
 	}
 
 	switch message.Text {
-	case "/help":
+	case "/help", "/start help":
 		return true, sendHelpMessage(ctx, bot, message)
 	case "/settings":
 		return true, handleSettingsCommand(ctx, bot, message)
@@ -69,7 +69,7 @@ func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) e
 
 	var helpText string
 	if message.Chat.Type == "private" {
-		helpText = fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
+		helpText = fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
 			models.GetTranslation(language, "help_title"),
 			models.GetTranslation(language, "help_description"),
 			models.GetTranslation(language, "help_commands"),
@@ -482,7 +482,7 @@ func handleSelfUnbanCommand(ctx *th.Context, bot *telego.Bot, message telego.Mes
 	}
 	if len(records) == 1 {
 		// Directly start math verification for the single ban record
-		return handleSelfUnbanStart(ctx, bot, message, records[0].GroupID, userID)
+		return SendMathVerificationMessage(ctx, bot, userID, records[0].GroupID, nil)
 	}
 	// Multiple records: ask user to choose which group to unban
 	var buttons [][]telego.InlineKeyboardButton
