@@ -21,9 +21,6 @@ import (
 // unbannParamRegex matches the format "unban_groupID_userID"
 var unbannParamRegex = regexp.MustCompile(`^unban_(-?\d+)_(\d+)$`)
 
-// External reference to the verification map defined in callbacks.go
-// var verificationAnswers map[int64]int
-
 // handleIncomingMessage processes new messages in chats
 func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
 	// Skip if no sender information or sender is a bot
@@ -50,8 +47,9 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 				// Verify that the user requesting unban is the same user who was banned
 				if message.From.ID != userID {
 					_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-						ChatID: telego.ChatID{ID: message.Chat.ID},
-						Text:   "您不能为其他用户解除限制。",
+						ChatID:    telego.ChatID{ID: message.Chat.ID},
+						Text:      "您不能为其他用户解除限制。\nYou cannot unban for other users.",
+						ParseMode: "HTML",
 					})
 					return err
 				}
@@ -66,6 +64,8 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 		if err := HandleMathVerification(ctx, bot, message); err != nil {
 			logger.Warningf("Error handling math verification: %v", err)
 		}
+
+		// @TODO: handle other commands/messages
 		return nil
 	}
 
@@ -77,7 +77,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 		// Prompt user to send /help command
 		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "请发送 /help 获取使用帮助。",
+			Text:      "请发送 /help 获取使用帮助。\nPlease send /help to get usage help.",
 			ParseMode: "HTML",
 		})
 		return err
@@ -94,8 +94,8 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	reason := ""
 
 	// @TODO: more rules
-	if strings.Contains(message.Text, "https://t.me/") || message.ForwardOrigin != nil {
-		logger.Infof("suspicious message: %+v, request cas", message)
+	if strings.Contains(message.Text, "https://t.me/") || message.Quote != nil || message.ForwardOrigin != nil {
+		logger.Infof("suspicious message: %+v, request cas or ai check, quote: %+v, forwardOrigin: %+v", message, message.Quote, message.ForwardOrigin)
 		shouldRestrict, reason = CasRequest(message.From.ID)
 
 		if !shouldRestrict && groupInfo.EnableAicheck {

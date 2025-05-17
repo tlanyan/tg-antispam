@@ -20,6 +20,9 @@ var verificationAnswers = make(map[int64]struct {
 	GroupID int64
 })
 
+// Add a map to track failed verification attempts
+var verificationAttempts = make(map[int64]int)
+
 // HandleCallbackQuery processes callback queries from inline keyboards
 func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
 	// Skip if no data
@@ -583,24 +586,7 @@ func showLanguageSelection(ctx *th.Context, bot *telego.Bot, query telego.Callba
 	return nil
 }
 
-// handleSelfUnbanCallback processes a request for a user to unban themselves
-func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
-	groupID, userID, err := getGroupAndUserID(query.Data)
-	if err != nil {
-		logger.Warningf("Invalid callback data in self-unban callback: %s", query.Data)
-		return nil
-	}
-
-	// Verify that the user clicking the button is the restricted user
-	if query.From.ID != userID {
-		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
-			CallbackQueryID: query.ID,
-			Text:            "只有被限制的用户才能使用此功能。",
-			ShowAlert:       true,
-		})
-		return err
-	}
-
+func sendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64, groupID int64, query *telego.CallbackQuery) error {
 	// Generate a random math problem
 	num1 := rand.Intn(100)
 	num2 := rand.Intn(100)
@@ -619,10 +605,11 @@ func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Call
 	}
 
 	// Store the answer in a temporary map (in a real implementation, you'd want to use a proper storage solution)
-	verificationAnswers[query.From.ID] = struct {
+	verificationAnswers[userID] = struct {
 		Answer  int
 		GroupID int64
 	}{correctAnswer, groupID}
+	verificationAttempts[userID] = 0
 
 	// Get group info for language
 	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
@@ -632,7 +619,7 @@ func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Call
 	}
 
 	// Send the math problem to the user
-	_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 		ChatID:    telego.ChatID{ID: query.From.ID},
 		Text:      fmt.Sprintf(models.GetTranslation(language, "math_verification"), num1, operator, num2),
 		ParseMode: "HTML",
@@ -644,23 +631,50 @@ func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Call
 	}
 
 	// Answer the callback query
-	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
-		CallbackQueryID: query.ID,
-	})
-	if err != nil {
-		logger.Warningf("Error answering callback query: %v", err)
+	if query != nil {
+		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+		})
+		if err != nil {
+			logger.Warningf("Error answering callback query: %v", err)
+		}
 	}
 
 	return nil
 }
 
+// handleSelfUnbanCallback processes a request for a user to unban themselves
+func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+	groupID, userID, err := getGroupAndUserID(query.Data)
+	if err != nil {
+		logger.Warningf("Invalid callback data in self-unban callback: %s", query.Data)
+		return nil
+	}
+
+	// Verify that the user clicking the button is the restricted user
+	if query.From.ID != userID {
+		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            "只有被限制的用户才能使用此功能。",
+			ShowAlert:       true,
+		})
+		return err
+	}
+
+	logger.Infof("handleSelfUnbanCallback, userID: %d, groupID: %d", userID, groupID)
+
+	return sendMathVerificationMessage(ctx, bot, userID, groupID, &query)
+}
+
 // HandleMathVerification processes the user's answer to the math verification
 func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	userID := message.From.ID
 	// Check if the user has a pending verification
-	expectedAnswer, exists := verificationAnswers[message.From.ID]
+	expectedAnswer, exists := verificationAnswers[userID]
 	if !exists {
 		return nil // No pending verification
 	}
+	groupID := expectedAnswer.GroupID
 
 	// Parse the user's answer
 	userAnswer, err := strconv.Atoi(strings.TrimSpace(message.Text))
@@ -679,12 +693,9 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 	// Check if the answer is correct
 	if userAnswer == expectedAnswer.Answer {
 		// Remove the verification from the map
-		delete(verificationAnswers, message.From.ID)
-
-		// Find the group ID from deep link params
-		// This is a simplification - in a real implementation, you'd need to store the group ID with the verification
-		// Note: We may need to be more creative on how to store this information
-		groupID := expectedAnswer.GroupID
+		delete(verificationAnswers, userID)
+		// Reset failed attempts count
+		delete(verificationAttempts, userID)
 
 		if groupID == 0 {
 			// Fallback: if we can't determine the group, use group info if available
@@ -695,7 +706,7 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 
 		if groupID != 0 {
 			// Unrestrict the user in the group
-			UnrestrictUser(ctx.Context(), bot, groupID, message.From.ID)
+			UnrestrictUser(ctx.Context(), bot, groupID, userID)
 
 			// Send success message
 			_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
@@ -707,17 +718,24 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 			// We couldn't determine which group to unban from
 			_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 				ChatID:    telego.ChatID{ID: message.Chat.ID},
-				Text:      "验证成功，但无法确定需要解封的群组。请联系管理员解决。",
+				Text:      "验证成功，但无法确定需要解封的群组。请联系管理员解决。\nVerification successful, but unable to determine which group to unban. Please contact the administrator to resolve.",
 				ParseMode: "HTML",
 			})
 		}
 	} else {
-		// Send failure message
-		_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      models.GetTranslation(language, "math_verification_failed"),
-			ParseMode: "HTML",
-		})
+		// Handle failed attempt count and potentially resend verification
+		count := verificationAttempts[userID] + 1
+		verificationAttempts[userID] = count
+		if count >= 3 {
+			err = sendMathVerificationMessage(ctx, bot, userID, expectedAnswer.GroupID, nil)
+		} else {
+			// Send failure message
+			_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+				ChatID:    telego.ChatID{ID: message.Chat.ID},
+				Text:      models.GetTranslation(language, "math_verification_failed"),
+				ParseMode: "HTML",
+			})
+		}
 	}
 
 	if err != nil {
