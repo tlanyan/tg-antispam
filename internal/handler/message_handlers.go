@@ -45,7 +45,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 				if message.From.ID != userID {
 					_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 						ChatID:    telego.ChatID{ID: message.Chat.ID},
-						Text:      "您不能为其他用户解除限制。\nYou cannot unban for other users.",
+						Text:      "不能为其他用户解除限制。\nYou cannot unban for other users.",
 						ParseMode: "HTML",
 					})
 					return err
@@ -74,17 +74,17 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 		// Prompt user to send /help command
 		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "请发送 /help 获取使用帮助。\nPlease send /help to get usage help.",
+			Text:      "请发送 /help 获取使用帮助。\nPlease send /help to get help.",
 			ParseMode: "HTML",
 		})
 		return err
 	}
 
 	groupInfo := service.GetGroupInfo(ctx, bot, message.Chat.ID, true)
-	if groupInfo == nil || !groupInfo.IsAdmin {
+	if !groupInfo.IsAdmin {
 		return nil
 	}
-	logger.Infof("Processing message: %+v", message)
+	logger.Infof("Processing message: %+v, from: %+v", message, *message.From)
 
 	// Use database configuration if available
 	shouldRestrict := false
@@ -92,7 +92,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 
 	// @TODO: more rules
 	if strings.Contains(message.Text, "https://t.me/") || message.Quote != nil || message.ForwardOrigin != nil {
-		logger.Infof("suspicious message: %+v, request cas or ai check, quote: %+v, forwardOrigin: %+v", message, message.Quote, message.ForwardOrigin)
+		logger.Infof("suspicious message: %s, request cas or ai check, quote: %+v, forwardOrigin: %+v", message.Text, *message.Quote, message.ForwardOrigin)
 		shouldRestrict, reason = CasRequest(message.From.ID)
 
 		if !shouldRestrict && groupInfo.EnableAicheck {
@@ -143,19 +143,22 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 		return nil
 	}
 
-	groupInfo := service.GetGroupInfo(ctx, bot, chatId, true)
-
 	newChatMember := update.ChatMember.NewChatMember
+	// skip restricted member
+	if newChatMember.MemberStatus() == telego.MemberStatusRestricted && newChatMember.MemberUser().ID != botID {
+		return nil
+	}
+
 	logger.Infof("new Chat member: %+v", newChatMember)
 
 	fromUser := update.ChatMember.From
 
 	// Skip updates related to the bot itself
 	if fromUser.ID == botID {
-		logger.Infof("Skipping chat member update from the bot itself")
 		return nil
 	}
 
+	groupInfo := service.GetGroupInfo(ctx, bot, chatId, true)
 	// Track admin who promoted the bot
 	if newChatMember.MemberUser().ID == botID {
 		// Check if the bot's status was changed to admin
@@ -182,7 +185,7 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 	if newChatMember.MemberIsMember() {
 		// Skip bots
 		if user.IsBot {
-			logger.Infof("Skipping bot: %s", user.FirstName)
+			logger.Infof("Skipping bot update: %s", user.FirstName)
 			return nil
 		}
 
