@@ -37,6 +37,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_random_username": "切换默认封禁随机用户名用户",
 		"cmd_desc_toggle_emoji_name":      "切换默认封禁姓名表情符号用户",
 		"cmd_desc_toggle_bio_link":        "切换默认封禁个人简介可疑链接用户",
+		"cmd_desc_self_unban":             "自助解封",
 
 		"user_not_admin": "只有群组管理员才能更改设置。",
 
@@ -162,6 +163,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_bio_link":        "切換個人簡介可疑連結封禁",
 		"cmd_desc_toggle_notifications":   "切換管理員通知",
 		"cmd_desc_language":               "設置機器人語言",
+		"cmd_desc_self_unban":             "自助解封",
 
 		"user_not_admin": "只有群組管理員才能更改設置。",
 
@@ -287,6 +289,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_random_username": "Toggle random username banning",
 		"cmd_desc_toggle_emoji_name":      "Toggle name emoji banning",
 		"cmd_desc_toggle_bio_link":        "Toggle bio link banning",
+		"cmd_desc_self_unban":             "Self-unban",
 
 		"user_not_admin": "Only group administrators can change settings.",
 

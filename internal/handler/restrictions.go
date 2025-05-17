@@ -210,14 +210,17 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 	}
 
 	// Send notification to the group with a link to the bot's private chat
+	startParam := "help"
+	if !user.IsPremium {
+		startParam = fmt.Sprintf("unban_%d_%d", groupInfo.GroupID, user.ID)
+	}
+
+	// Create URL button to open private chat with the bot
+	// Using deep linking to pass group ID and user ID
 	selfUnbanMessage := fmt.Sprintf(
 		models.GetTranslation(language, "warning_self_unban_instruction"),
 		userLink,
 	)
-
-	// Create URL button to open private chat with the bot
-	// Using deep linking to pass group ID and user ID
-	startParam := fmt.Sprintf("unban_%d_%d", groupInfo.GroupID, user.ID)
 	botURL := fmt.Sprintf("https://t.me/%s?start=%s", botInfo.Username, startParam)
 
 	selfUnbanButton := telego.InlineKeyboardButton{

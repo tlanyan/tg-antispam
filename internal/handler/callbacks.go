@@ -73,6 +73,8 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 
 	// Unrestrict the user
 	UnrestrictUser(ctx.Context(), bot, groupID, userID)
+	// Update ban_records to mark as unbanned
+	service.MarkBanRecordUnbanned(groupID, userID, "admin")
 
 	// Get group info for language
 	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
@@ -707,6 +709,8 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 		if groupID != 0 {
 			// Unrestrict the user in the group
 			UnrestrictUser(ctx.Context(), bot, groupID, userID)
+			// Update ban_records to mark as unbanned
+			service.MarkBanRecordUnbanned(groupID, userID, "self")
 
 			// Send success message
 			_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{

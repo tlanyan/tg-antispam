@@ -40,6 +40,8 @@ func RegisterCommands(ctx *th.Context, bot *telego.Bot, message telego.Message) 
 		return true, handleToggleCommand(ctx, bot, message, "toggle_notifications")
 	case "/language":
 		return true, handleToggleCommand(ctx, bot, message, "language")
+	case "/self_unban":
+		return true, handleSelfUnbanCommand(ctx, bot, message)
 	}
 
 	if message.Chat.Type == "private" && message.ReplyToMessage != nil {
@@ -79,6 +81,7 @@ func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) e
 			models.GetTranslation(language, "help_cmd_toggle_emoji_name"),
 			models.GetTranslation(language, "help_cmd_toggle_bio_link"),
 			models.GetTranslation(language, "help_cmd_toggle_notifications"),
+			models.GetTranslation(language, "help_cmd_self_unban"),
 			models.GetTranslation(language, "help_cmd_language"),
 			models.GetTranslation(language, "help_note"),
 		)
@@ -458,5 +461,49 @@ func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message,
 	}
 	logger.Infof("Sent settings message: %+v", msg)
 
+	return err
+}
+
+// handleSelfUnbanCommand guides a user through self-unban based on their ban records
+func handleSelfUnbanCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	userID := message.From.ID
+	records, err := service.GetActiveBanRecordsByUser(userID)
+	if err != nil {
+		logger.Warningf("Error fetching ban records for user %d: %v", userID, err)
+		return nil
+	}
+	if len(records) == 0 {
+		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID:    telego.ChatID{ID: message.Chat.ID},
+			Text:      "您没有待解封的记录。\nYou have no ban records to unban.",
+			ParseMode: "HTML",
+		})
+		return err
+	}
+	if len(records) == 1 {
+		// Directly start math verification for the single ban record
+		return handleSelfUnbanStart(ctx, bot, message, records[0].GroupID, userID)
+	}
+	// Multiple records: ask user to choose which group to unban
+	var buttons [][]telego.InlineKeyboardButton
+	for _, rec := range records {
+		grp := service.GetGroupInfo(ctx.Context(), bot, rec.GroupID)
+		label := fmt.Sprintf("%d", rec.GroupID)
+		if grp != nil && grp.GroupName != "" {
+			label = grp.GroupName
+		}
+		btn := telego.InlineKeyboardButton{
+			Text:         label,
+			CallbackData: fmt.Sprintf("self_unban:%d:%d", rec.GroupID, userID),
+		}
+		buttons = append(buttons, []telego.InlineKeyboardButton{btn})
+	}
+	markup := &telego.InlineKeyboardMarkup{InlineKeyboard: buttons}
+	_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+		ChatID:      telego.ChatID{ID: message.Chat.ID},
+		Text:        "请选择要解除限制的群组：\nPlease select the group to unban from:",
+		ParseMode:   "HTML",
+		ReplyMarkup: markup,
+	})
 	return err
 }

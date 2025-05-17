@@ -88,6 +88,7 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 		{Command: "toggle_emoji_name", DescKey: "cmd_desc_toggle_emoji_name"},
 		{Command: "toggle_bio_link", DescKey: "cmd_desc_toggle_bio_link"},
 		{Command: "toggle_notifications", DescKey: "cmd_desc_toggle_notifications"},
+		{Command: "self_unban", DescKey: "cmd_desc_self_unban"},
 		{Command: "language", DescKey: "cmd_desc_language"},
 	}
 

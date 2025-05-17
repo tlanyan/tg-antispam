@@ -22,3 +22,19 @@ CREATE TABLE IF NOT EXISTS `group_info` (
   UNIQUE KEY `idx_group_id` (`group_id`, `admin_id`),
   KEY `idx_admin_id` (`admin_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create BanRecord table
+CREATE TABLE IF NOT EXISTS `ban_record` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `group_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `reason` text NOT NULL,
+  `is_unbanned` tinyint(1) DEFAULT 0,
+  `unbanned_by` varchar(255) DEFAULT '',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_group_id` (`group_id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

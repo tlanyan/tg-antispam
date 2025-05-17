@@ -62,6 +62,10 @@ func migrateDatabase(db *gorm.DB) error {
 		return fmt.Errorf("failed to migrate GroupInfo model: %w", err)
 	}
 
+	if err := db.AutoMigrate(&models.BanRecord{}); err != nil {
+		return fmt.Errorf("failed to migrate BanRecord model: %w", err)
+	}
+
 	return nil
 }
 

@@ -120,6 +120,8 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 			MessageID: message.MessageID,
 		})
 		RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+		// Record the ban event in database
+		service.CreateBanRecord(message.Chat.ID, message.From.ID, reason)
 		// Send warning only if notifications are enabled
 		if groupInfo.EnableNotification {
 			SendWarning(ctx.Context(), bot, groupInfo, *message.From, reason)
