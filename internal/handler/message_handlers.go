@@ -80,8 +80,8 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 		return err
 	}
 
-	groupInfo := service.GetGroupInfo(ctx, bot, message.Chat.ID)
-	if !groupInfo.IsAdmin {
+	groupInfo := service.GetGroupInfo(ctx, bot, message.Chat.ID, true)
+	if groupInfo == nil || !groupInfo.IsAdmin {
 		return nil
 	}
 	logger.Infof("Processing message: %+v", message)
@@ -121,7 +121,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 		service.CreateBanRecord(message.Chat.ID, message.From.ID, reason)
 		// Send warning only if notifications are enabled
 		if groupInfo.EnableNotification {
-			SendWarning(ctx.Context(), bot, groupInfo, *message.From, reason)
+			SendWarning(ctx.Context(), bot, groupInfo.GroupID, *message.From, reason)
 		}
 	}
 
@@ -143,7 +143,7 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 		return nil
 	}
 
-	groupInfo := service.GetGroupInfo(ctx, bot, chatId)
+	groupInfo := service.GetGroupInfo(ctx, bot, chatId, true)
 
 	newChatMember := update.ChatMember.NewChatMember
 	logger.Infof("new Chat member: %+v", newChatMember)
@@ -228,7 +228,7 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 			RestrictUser(ctx.Context(), bot, chatId, user.ID)
 			// Send warning only if notifications are enabled
 			if groupInfo.EnableNotification {
-				SendWarning(ctx.Context(), bot, groupInfo, user, reason)
+				SendWarning(ctx.Context(), bot, groupInfo.GroupID, user, reason)
 			}
 		}
 	}

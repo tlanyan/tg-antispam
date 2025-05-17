@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"tg-antispam/internal/service"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -123,4 +124,12 @@ func ClassifyWithGemini(apiKey string, message string) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func GetBotChatLang(ctx *th.Context, bot *telego.Bot, chatID int64, groupID int64) string {
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, chatID, false)
+	if groupInfo == nil {
+		groupInfo = service.GetGroupInfo(ctx.Context(), bot, groupID, true)
+	}
+	return groupInfo.Language
 }

@@ -43,7 +43,7 @@ func InitGroupRepository() {
 	}
 }
 
-func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.GroupInfo {
+func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64, create bool) *models.GroupInfo {
 	// First check the in-memory cache
 	groupInfo := groupInfoManager.GetGroupInfo(chatID)
 	if groupInfo != nil {
@@ -63,6 +63,10 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 		}
 	}
 
+	if !create {
+		return nil
+	}
+
 	logger.Infof("Creating new group info for chatID: %d", chatID)
 	groupInfo = &models.GroupInfo{
 		GroupID:            chatID,
@@ -77,31 +81,35 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64) *models.Gr
 		Language:           "zh_CN",
 	}
 
-	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
-		ChatID: telego.ChatID{ID: chatID},
-	})
+	// group
+	if chatID < 0 {
+		chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
+			ChatID: telego.ChatID{ID: chatID},
+		})
 
-	if err != nil {
-		logger.Warningf("Error getting chat info from Telegram: %v", err)
-		return groupInfo
-	}
-
-	groupInfo.GroupName = chatInfo.Title
-
-	if chatInfo.Username != "" {
-		groupInfo.GroupLink = fmt.Sprintf("https://t.me/%s", chatInfo.Username)
-	} else {
-		// For private groups, convert the chat ID to work with t.me links
-		// Telegram requires removing the -100 prefix from supergroup IDs for links
-		groupIDForLink := chatID
-		if groupIDForLink < -1000000000000 {
-			// Extract the actual ID from the negative number (skip the -100 prefix)
-			groupIDForLink = -groupIDForLink - 1000000000000
+		if err != nil {
+			logger.Warningf("Error getting chat info from Telegram: %v", err)
+			return groupInfo
 		}
-		groupInfo.GroupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
+
+		groupInfo.GroupName = chatInfo.Title
+
+		if chatInfo.Username != "" {
+			groupInfo.GroupLink = fmt.Sprintf("https://t.me/%s", chatInfo.Username)
+		} else {
+			// For private groups, convert the chat ID to work with t.me links
+			// Telegram requires removing the -100 prefix from supergroup IDs for links
+			groupIDForLink := chatID
+			if groupIDForLink < -1000000000000 {
+				// Extract the actual ID from the negative number (skip the -100 prefix)
+				groupIDForLink = -groupIDForLink - 1000000000000
+			}
+			groupInfo.GroupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
+		}
+
+		groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(ctx, bot, chatID)
 	}
 
-	groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(ctx, bot, chatID)
 	logger.Infof("Group info created: %+v", groupInfo)
 
 	groupInfoManager.AddGroupInfo(groupInfo)

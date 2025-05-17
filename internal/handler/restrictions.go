@@ -14,6 +14,7 @@ import (
 
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
+	"tg-antispam/internal/service"
 )
 
 var (
@@ -158,7 +159,19 @@ func GetLinkedUserName(user telego.User) string {
 }
 
 // SendWarning sends a warning message about the restricted user
-func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupInfo, user telego.User, reason string) {
+func SendWarning(ctx context.Context, bot *telego.Bot, groupID int64, user telego.User, reason string) {
+
+	NotifyAdmin(ctx, bot, groupID, user, reason)
+
+	NotifyUserInGroup(ctx, bot, groupID, user, reason)
+}
+
+func NotifyAdmin(ctx context.Context, bot *telego.Bot, groupID int64, user telego.User, reason string) {
+	groupInfo := service.GetGroupInfo(ctx, bot, groupID, false)
+	if groupInfo == nil {
+		return
+	}
+
 	language := groupInfo.Language
 
 	// Get user display name with HTML link
@@ -201,7 +214,9 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 			logger.Warningf("Error sending warning message to admin: %v", err)
 		}
 	}
+}
 
+func NotifyUserInGroup(ctx context.Context, bot *telego.Bot, groupID int64, user telego.User, reason string) {
 	// Get bot username to create the deep link
 	botInfo, err := bot.GetMe(ctx)
 	if err != nil {
@@ -209,6 +224,14 @@ func SendWarning(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupIn
 		return
 	}
 
+	groupInfo := service.GetGroupInfo(ctx, bot, groupID, false)
+	if groupInfo == nil {
+		return
+	}
+	language := groupInfo.Language
+
+	// Get user display name with HTML link
+	userLink := GetLinkedUserName(user)
 	// Send notification to the group with a link to the bot's private chat
 	startParam := "help"
 	if !user.IsPremium {

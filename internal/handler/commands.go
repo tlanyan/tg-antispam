@@ -22,7 +22,7 @@ func RegisterCommands(ctx *th.Context, bot *telego.Bot, message telego.Message) 
 	}
 
 	switch message.Text {
-	case "/help", "/start help":
+	case "/help", "/start", "/start help":
 		return true, sendHelpMessage(ctx, bot, message)
 	case "/settings":
 		return true, handleSettingsCommand(ctx, bot, message)
@@ -38,8 +38,10 @@ func RegisterCommands(ctx *th.Context, bot *telego.Bot, message telego.Message) 
 		return true, handleToggleCommand(ctx, bot, message, "toggle_bio_link")
 	case "/toggle_notifications":
 		return true, handleToggleCommand(ctx, bot, message, "toggle_notifications")
+	case "/language_group":
+		return true, handleToggleCommand(ctx, bot, message, "language_group")
 	case "/language":
-		return true, handleToggleCommand(ctx, bot, message, "language")
+		return true, handleLanguageCommand(ctx, bot, message)
 	case "/self_unban":
 		return true, handleSelfUnbanCommand(ctx, bot, message)
 	}
@@ -56,24 +58,37 @@ func RegisterCommands(ctx *th.Context, bot *telego.Bot, message telego.Message) 
 	return false, nil
 }
 
+func handleLanguageCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, message.Chat.ID, true)
+	// current chat
+	if groupInfo.AdminID == -1 {
+		groupInfo.AdminID = message.From.ID
+		groupInfo.IsAdmin = true
+		service.UpdateGroupInfo(groupInfo)
+	}
+	query := telego.CallbackQuery{
+		ID:      "",            // 这里没有实际的回调ID，但函数调用中不会用到
+		From:    *message.From, // 解引用指针，获取用户对象
+		Message: &message,
+	}
+	return showLanguageSelection(ctx, bot, query, message.Chat.ID, groupInfo.Language)
+}
+
 // sendHelpMessage sends help information based on chat type and language
 func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
-	// Get the group's language settings if in a group, otherwise use default
-	language := models.LangSimplifiedChinese
-	if message.Chat.Type != "private" {
-		groupInfo := service.GetGroupInfo(ctx.Context(), bot, message.Chat.ID)
-		if groupInfo != nil && groupInfo.Language != "" {
-			language = groupInfo.Language
-		}
-	}
+	language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
 
 	var helpText string
 	if message.Chat.Type == "private" {
-		helpText = fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
+		helpText = fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
 			models.GetTranslation(language, "help_title"),
 			models.GetTranslation(language, "help_description"),
-			models.GetTranslation(language, "help_commands"),
+			models.GetTranslation(language, "general_commands"),
 			models.GetTranslation(language, "help_cmd_help"),
+			models.GetTranslation(language, "help_cmd_self_unban"),
+			models.GetTranslation(language, "help_cmd_language"),
+
+			models.GetTranslation(language, "settings_commands"),
 			models.GetTranslation(language, "help_cmd_settings"),
 			models.GetTranslation(language, "help_cmd_toggle_premium"),
 			models.GetTranslation(language, "help_cmd_toggle_cas"),
@@ -81,8 +96,7 @@ func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) e
 			models.GetTranslation(language, "help_cmd_toggle_emoji_name"),
 			models.GetTranslation(language, "help_cmd_toggle_bio_link"),
 			models.GetTranslation(language, "help_cmd_toggle_notifications"),
-			models.GetTranslation(language, "help_cmd_self_unban"),
-			models.GetTranslation(language, "help_cmd_language"),
+			models.GetTranslation(language, "help_cmd_language_group"),
 			models.GetTranslation(language, "help_note"),
 		)
 	} else {
@@ -107,17 +121,12 @@ func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) e
 
 // handleSettingsCommand handles the /settings command
 func handleSettingsCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
-	language := models.LangSimplifiedChinese
+	language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
 
 	logger.Debugf("handleSettingsCommand called for message: %+v", message)
 	if message.Chat.Type == "private" {
 		return showGroupSelection(ctx, bot, message, "settings")
 	} else {
-		groupInfo := service.GetGroupInfo(ctx.Context(), bot, message.Chat.ID)
-		if groupInfo.Language != "" {
-			language = groupInfo.Language
-		}
-
 		// Check if sender is admin
 		senderIsAdmin, err := isUserAdmin(ctx.Context(), bot, message.Chat.ID, message.From.ID)
 		if err != nil || !senderIsAdmin {
@@ -137,15 +146,11 @@ func handleSettingsCommand(ctx *th.Context, bot *telego.Bot, message telego.Mess
 
 // handleToggleCommand is a generic handler for all toggle commands
 func handleToggleCommand(ctx *th.Context, bot *telego.Bot, message telego.Message, action string) error {
-	logger.Debugf("handleToggleCommand called for message: %+v", message)
+	logger.Infof("handleToggleCommand called, action: %s, for message: %+v", action, message)
 	if message.Chat.Type == "private" {
 		return showGroupSelection(ctx, bot, message, action)
 	} else {
-		language := models.LangSimplifiedChinese
-		groupInfo := service.GetGroupInfo(ctx.Context(), bot, message.Chat.ID)
-		if groupInfo.Language != "" {
-			language = groupInfo.Language
-		}
+		language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
 
 		botUsername, _ := getBotUsername(ctx.Context(), bot)
 		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
@@ -231,7 +236,7 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 		return err
 	}
 
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID, true)
 	groupInfo.AdminID = message.From.ID
 	service.UpdateGroupInfo(groupInfo)
 
@@ -247,9 +252,9 @@ func handleGroupIDInput(ctx *th.Context, bot *telego.Bot, message telego.Message
 
 // showGroupSelection displays a list of groups for the user to select from
 func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message, action string) error {
-	logger.Debugf("showGroupSelection called for message: %+v", message)
+	logger.Infof("showGroupSelection called, action: %s, message: %+v", action, message)
 	userID := message.From.ID
-	language := models.LangSimplifiedChinese
+	language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
 
 	var adminGroups []*models.GroupInfo
 	var err error
@@ -267,13 +272,10 @@ func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message
 
 	// 如果没有找到群组，提示用户输入群组ID
 	if len(adminGroups) == 0 {
-		selectText := models.GetTranslation(language, "enter_group_id")
-
 		msg, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-			ChatID:      telego.ChatID{ID: message.Chat.ID},
-			Text:        selectText,
-			ParseMode:   "HTML",
-			ReplyMarkup: &telego.ForceReply{ForceReply: true, InputFieldPlaceholder: "-1001234567890"},
+			ChatID:    telego.ChatID{ID: message.Chat.ID},
+			Text:      models.GetTranslation(language, "empty_group_list"),
+			ParseMode: "HTML",
 		})
 		if err != nil {
 			logger.Warningf("Error sending message: %v", err)
@@ -290,7 +292,7 @@ func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message
 		switch action {
 		case "settings":
 			return showGroupSettings(ctx, bot, message, group.GroupID, language)
-		case "toggle_premium", "toggle_cas", "toggle_random_username", "toggle_emoji_name", "toggle_bio_link", "toggle_notifications", "language":
+		case "toggle_premium", "toggle_cas", "toggle_random_username", "toggle_emoji_name", "toggle_bio_link", "toggle_notifications", "language_group":
 			// 模拟回调数据处理，创建一个回调查询对象
 			callbackData := fmt.Sprintf("action:%s:%d", action, group.GroupID)
 			query := telego.CallbackQuery{
@@ -320,14 +322,6 @@ func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message
 			},
 		})
 	}
-
-	// 添加"输入群组ID"按钮
-	rows = append(rows, []telego.InlineKeyboardButton{
-		{
-			Text:         "➕ 添加群组",
-			CallbackData: "group:add:" + action,
-		},
-	})
 
 	// 发送选择消息
 	selectText := models.GetTranslation(language, "select_group")
@@ -421,7 +415,7 @@ func buildGroupSettingsMessageParts(groupInfo *models.GroupInfo, language string
 		{
 			{
 				Text:         models.GetTranslation(language, "change_language"),
-				CallbackData: fmt.Sprintf("action:language:%d", groupID),
+				CallbackData: fmt.Sprintf("action:language_group:%d", groupID),
 			},
 		},
 	}
@@ -432,7 +426,7 @@ func buildGroupSettingsMessageParts(groupInfo *models.GroupInfo, language string
 func showGroupSettings(ctx *th.Context, bot *telego.Bot, message telego.Message, groupID int64, language string) error {
 	logger.Infof("showGroupSettings called for message: %+v, groupID=%d", message, groupID)
 	// 获取群组信息
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
+	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID, false)
 	if groupInfo == nil || !groupInfo.IsAdmin {
 		// 机器人不是管理员
 		msg, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
@@ -487,7 +481,10 @@ func handleSelfUnbanCommand(ctx *th.Context, bot *telego.Bot, message telego.Mes
 	// Multiple records: ask user to choose which group to unban
 	var buttons [][]telego.InlineKeyboardButton
 	for _, rec := range records {
-		grp := service.GetGroupInfo(ctx.Context(), bot, rec.GroupID)
+		grp := service.GetGroupInfo(ctx.Context(), bot, rec.GroupID, false)
+		if grp == nil {
+			continue
+		}
 		label := fmt.Sprintf("%d", rec.GroupID)
 		if grp != nil && grp.GroupName != "" {
 			label = grp.GroupName

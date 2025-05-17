@@ -135,7 +135,7 @@ func InitializeGroups(groupInfoManager *models.GroupInfoManager) error {
 // GetGroupsByAdminID retrieves all groups with the specified admin ID
 func (r *GroupRepository) GetGroupsByAdminID(adminID int64) ([]*models.GroupInfo, error) {
 	var groups []*models.GroupInfo
-	result := r.db.Where("admin_id = ?", adminID).Find(&groups)
+	result := r.db.Where("admin_id = ? and group_id < 0", adminID).Find(&groups)
 	if result.Error != nil {
 		return nil, result.Error
 	}
