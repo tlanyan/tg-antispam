@@ -588,7 +588,7 @@ func showLanguageSelection(ctx *th.Context, bot *telego.Bot, query telego.Callba
 	return nil
 }
 
-func sendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64, groupID int64, query *telego.CallbackQuery) error {
+func SendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64, groupID int64, query *telego.CallbackQuery) error {
 	// Generate a random math problem
 	num1 := rand.Intn(100)
 	num2 := rand.Intn(100)
@@ -622,7 +622,7 @@ func sendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64,
 
 	// Send the math problem to the user
 	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-		ChatID:    telego.ChatID{ID: query.From.ID},
+		ChatID:    telego.ChatID{ID: userID},
 		Text:      fmt.Sprintf(models.GetTranslation(language, "math_verification"), num1, operator, num2),
 		ParseMode: "HTML",
 	})
@@ -665,7 +665,7 @@ func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Call
 
 	logger.Infof("handleSelfUnbanCallback, userID: %d, groupID: %d", userID, groupID)
 
-	return sendMathVerificationMessage(ctx, bot, userID, groupID, &query)
+	return SendMathVerificationMessage(ctx, bot, userID, groupID, &query)
 }
 
 // HandleMathVerification processes the user's answer to the math verification
@@ -731,7 +731,7 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 		count := verificationAttempts[userID] + 1
 		verificationAttempts[userID] = count
 		if count >= 3 {
-			err = sendMathVerificationMessage(ctx, bot, userID, expectedAnswer.GroupID, nil)
+			err = SendMathVerificationMessage(ctx, bot, userID, expectedAnswer.GroupID, nil)
 		} else {
 			// Send failure message
 			_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{

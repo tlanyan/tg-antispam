@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"fmt"
-	"math/rand"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -13,7 +11,6 @@ import (
 
 	"tg-antispam/internal/config"
 	"tg-antispam/internal/logger"
-	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
 	"tg-antispam/internal/storage"
 )
@@ -54,7 +51,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 					return err
 				}
 
-				return handleSelfUnbanStart(ctx, bot, message, groupID, userID)
+				return SendMathVerificationMessage(ctx, bot, groupID, userID, nil)
 			}
 
 			// If not an unban request, continue with normal processing
@@ -129,52 +126,6 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	}
 
 	return nil
-}
-
-// handleSelfUnbanStart processes a self-unban request from a /start command
-func handleSelfUnbanStart(ctx *th.Context, bot *telego.Bot, message telego.Message, groupID int64, userID int64) error {
-	// Get group info for language
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID)
-	language := models.LangSimplifiedChinese
-	if groupInfo != nil && groupInfo.Language != "" {
-		language = groupInfo.Language
-	}
-
-	// Generate a random math problem
-	num1 := rand.Intn(100)
-	num2 := rand.Intn(100)
-	operators := []string{"+", "-", "*"}
-	operator := operators[rand.Intn(len(operators))]
-
-	// Calculate the correct answer
-	var correctAnswer int
-	switch operator {
-	case "+":
-		correctAnswer = num1 + num2
-	case "-":
-		correctAnswer = num1 - num2
-	case "*":
-		correctAnswer = num1 * num2
-	}
-
-	// Store the answer and group ID in the verification map
-	verificationAnswers[userID] = struct {
-		Answer  int
-		GroupID int64
-	}{correctAnswer, groupID}
-
-	// Send the math problem to the user
-	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-		ChatID:    telego.ChatID{ID: message.Chat.ID},
-		Text:      fmt.Sprintf(models.GetTranslation(language, "math_verification"), num1, operator, num2),
-		ParseMode: "HTML",
-	})
-
-	if err != nil {
-		logger.Warningf("Error sending math verification message: %v", err)
-	}
-
-	return err
 }
 
 // handleChatMemberUpdate processes updates to chat members
