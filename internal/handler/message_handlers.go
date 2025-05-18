@@ -33,37 +33,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 
 	// Check for math verification answers first
 	if message.Chat.Type == "private" {
-		// Handle /start command with parameters for self-unban
-		if message.Text != "" && strings.HasPrefix(message.Text, "/start ") {
-			startParam := strings.TrimPrefix(message.Text, "/start ")
-			// Check if this is an unban request
-			if matches := unbannParamRegex.FindStringSubmatch(startParam); matches != nil {
-				groupID, _ := strconv.ParseInt(matches[1], 10, 64)
-				userID, _ := strconv.ParseInt(matches[2], 10, 64)
-
-				// Verify that the user requesting unban is the same user who was banned
-				if message.From.ID != userID {
-					_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-						ChatID:    telego.ChatID{ID: message.Chat.ID},
-						Text:      "不能为其他用户解除限制。\nYou cannot unban for other users.",
-						ParseMode: "HTML",
-					})
-					return err
-				}
-
-				return SendMathVerificationMessage(ctx, bot, groupID, userID, nil)
-			}
-
-			// If not an unban request, continue with normal processing
-		}
-
-		// Check for pending math verification answer
-		if err := HandleMathVerification(ctx, bot, message); err != nil {
-			logger.Warningf("Error handling math verification: %v", err)
-		}
-
-		// @TODO: handle other commands/messages
-		return nil
+		return handlePrivateMessage(ctx, bot, message)
 	}
 
 	if message.Chat.ID > 0 {
@@ -80,12 +50,50 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 		return err
 	}
 
+	return handleGroupMessage(ctx, bot, message)
+}
+
+func handlePrivateMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	// Handle /start command with parameters for self-unban
+	if message.Text != "" && strings.HasPrefix(message.Text, "/start ") {
+		startParam := strings.TrimPrefix(message.Text, "/start ")
+		// Check if this is an unban request
+		if matches := unbannParamRegex.FindStringSubmatch(startParam); matches != nil {
+			groupID, _ := strconv.ParseInt(matches[1], 10, 64)
+			userID, _ := strconv.ParseInt(matches[2], 10, 64)
+
+			// Verify that the user requesting unban is the same user who was banned
+			if message.From.ID != userID {
+				_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+					ChatID:    telego.ChatID{ID: message.Chat.ID},
+					Text:      "不能为其他用户解除限制。\nYou cannot unban for other users.",
+					ParseMode: "HTML",
+				})
+				return err
+			}
+
+			return SendMathVerificationMessage(ctx, bot, groupID, userID, nil)
+		}
+
+		// If not an unban request, continue with normal processing
+	}
+
+	// Check for pending math verification answer
+	if err := HandleMathVerification(ctx, bot, message); err != nil {
+		logger.Warningf("Error handling math verification: %v", err)
+	}
+
+	// @TODO: handle other commands/messages
+	return nil
+}
+
+func handleGroupMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	cfg := config.Get()
 	groupInfo := service.GetGroupInfo(ctx, bot, message.Chat.ID, true)
 	if !groupInfo.IsAdmin {
 		return nil
 	}
 	logger.Infof("Processing message: %+v, from: %+v", message, *message.From)
-
 	// Use database configuration if available
 	shouldRestrict := false
 	reason := ""
@@ -181,6 +189,11 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 		return nil
 	}
 
+	return checkRestrictedUser(ctx, bot, chatId, newChatMember, fromUser)
+}
+
+func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChatMember telego.ChatMember, fromUser telego.User) error {
+	groupInfo := service.GetGroupInfo(ctx, bot, chatId, false)
 	user := newChatMember.MemberUser()
 	if newChatMember.MemberIsMember() {
 		// Skip bots
