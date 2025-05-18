@@ -80,15 +80,15 @@ func getLinkedUserName(ctx *th.Context, bot *telego.Bot, userID int64) (string, 
 	return fmt.Sprintf("<a href=\"%s\">%s</a>", userLink, userName), nil
 }
 
-// ClassifyWithGemini calls the Gemini 1.5 Pro API to classify a message as spam.
+// ClassifyWithGemini calls the Gemini Pro API to classify a message as spam.
 // Returns true if spam, false otherwise.
-func ClassifyWithGemini(apiKey string, message string) (bool, error) {
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=%s", apiKey)
+func ClassifyWithGemini(apiKey string, model string, message string) (bool, error) {
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1/models/%s:generateContent?key=%s", model, apiKey)
 	reqBody := map[string]interface{}{
 		"contents": []map[string]interface{}{
 			{
 				"parts": []map[string]string{
-					{"text": fmt.Sprintf("请判断以下消息是否是垃圾信息？仅回复 是 或 否:\n%s", message)},
+					{"text": fmt.Sprintf("这是一条群里的聊天消息，请判断是否黄、赌、毒、广告、骚扰或者诈骗信息？仅回复 是 或 否:\n%s", message)},
 				},
 			},
 		},
@@ -109,7 +109,9 @@ func ClassifyWithGemini(apiKey string, message string) (bool, error) {
 	var result struct {
 		Candidates []struct {
 			Content struct {
-				Text string `json:"text"`
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
 			} `json:"content"`
 		} `json:"candidates"`
 	}
@@ -119,7 +121,10 @@ func ClassifyWithGemini(apiKey string, message string) (bool, error) {
 	if len(result.Candidates) == 0 {
 		return false, fmt.Errorf("no candidates returned from gemini API")
 	}
-	text := strings.TrimSpace(result.Candidates[0].Content.Text)
+	if len(result.Candidates[0].Content.Parts) == 0 {
+		return false, fmt.Errorf("no text parts returned from gemini API")
+	}
+	text := strings.TrimSpace(result.Candidates[0].Content.Parts[0].Text)
 	if strings.HasPrefix(text, "是") || strings.HasPrefix(strings.ToLower(text), "yes") {
 		return true, nil
 	}

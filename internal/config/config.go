@@ -71,6 +71,7 @@ type AntispamConfig struct {
 
 type AiApiConfig struct {
 	GeminiApiKey string `mapstructure:"gemini_api_key"`
+	GeminiModel  string `mapstructure:"gemini_model"`
 }
 
 var cfg *Config
@@ -134,4 +135,5 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("antispam.use_cas", true)
 	v.SetDefault("antispam.ban_premium", true)
 	v.SetDefault("ai_api.gemini_api_key", "")
+	v.SetDefault("ai_api.gemini_model", "gemini-2.0-flash")
 }

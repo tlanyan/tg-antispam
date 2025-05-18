@@ -98,28 +98,36 @@ func handleGroupMessage(ctx *th.Context, bot *telego.Bot, message telego.Message
 	shouldRestrict := false
 	reason := ""
 
+	text := ""
 	// @TODO: more rules
-	if strings.Contains(message.Text, "https://t.me/") || message.ForwardOrigin != nil || strings.Contains(message.Text, "@") {
-		logger.Infof("suspicious message: %s, request cas or ai check, quote: %+v, forwardOrigin: %+v", message.Text, *message.Quote, message.ForwardOrigin)
+	if strings.Contains(message.Text, "https://t.me/") || (strings.Contains(message.Text, "@") && strings.HasPrefix(message.Text, "/")) {
+		text = message.Text
+	} else if message.ForwardOrigin != nil {
+		text = message.Caption
+	} else if message.Quote != nil {
+		text = message.Quote.Text
+	}
+
+	if text != "" {
+		logger.Infof("suspicious message: %s, request cas or ai check", text)
 		shouldRestrict, reason = CasRequest(message.From.ID)
 
 		if !shouldRestrict && groupInfo.EnableAicheck {
-			// 请求gemini 1.5 pro api 判断是否是垃圾信息
 			if cfg.AiApi.GeminiApiKey != "" {
-				isSpam, err := ClassifyWithGemini(cfg.AiApi.GeminiApiKey, message.Text)
+				isSpam, err := ClassifyWithGemini(cfg.AiApi.GeminiApiKey, cfg.AiApi.GeminiModel, text)
 				if err != nil {
 					logger.Warningf("Error classifying message with Gemini: %v", err)
 				} else if isSpam {
 					shouldRestrict = true
 					reason = "reason_ai_spam"
 				}
-				logger.Infof("AI check message: %s, result: %t", message.Text, isSpam)
+				logger.Infof("AI check message: %s, result: %t", text, isSpam)
 			}
 		}
 	}
 
 	if shouldRestrict {
-		logger.Infof("suspicious message: %+v, delete and restrict user: %d", message, message.From.ID)
+		logger.Infof("suspicious message text: %s, delete and restrict user: %d", text, message.From.ID)
 		bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			MessageID: message.MessageID,
