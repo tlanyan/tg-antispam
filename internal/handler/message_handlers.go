@@ -91,7 +91,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	reason := ""
 
 	// @TODO: more rules
-	if strings.Contains(message.Text, "https://t.me/") || message.Quote != nil || message.ForwardOrigin != nil {
+	if strings.Contains(message.Text, "https://t.me/") || message.ForwardOrigin != nil || strings.Contains(message.Text, "@") {
 		logger.Infof("suspicious message: %s, request cas or ai check, quote: %+v, forwardOrigin: %+v", message.Text, *message.Quote, message.ForwardOrigin)
 		shouldRestrict, reason = CasRequest(message.From.ID)
 
