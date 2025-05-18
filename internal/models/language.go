@@ -42,7 +42,8 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_bio_link":        "切换默认封禁个人简介可疑链接用户",
 		"cmd_desc_self_unban":             "自助解封",
 
-		"user_not_admin": "只有群组管理员才能更改设置。",
+		"user_not_admin":   "您不是群组管理员，无法使用该指令",
+		"empty_group_list": "群组记录为空，请将机器人添加到您管理的群组中并设置为管理员",
 
 		"settings_title":           "%s 的设置",
 		"settings_bot_status":      "机器人状态:",
@@ -60,7 +61,7 @@ var Translations = map[string]Translation{
 		"disabled": "❌ 禁用",
 
 		"language_select":  "请选择语言:",
-		"language_updated": "语言已更新为: %s",
+		"language_updated": "机器人语言已更新为: %s",
 
 		"warning_title":                  "⚠️ <b>安全提醒</b> [%s]",
 		"warning_restricted":             "用户 %s 已被限制发送消息和媒体的权限",
@@ -153,7 +154,8 @@ var Translations = map[string]Translation{
 		"cmd_desc_language":               "設置機器人語言",
 		"cmd_desc_self_unban":             "自助解封",
 
-		"user_not_admin": "只有群組管理員才能更改設置。",
+		"user_not_admin":   "您不是群組管理員，無法使用該指令",
+		"empty_group_list": "群組記錄為空，請將機器人添加到您管理的群組中並設置為管理員",
 
 		"settings_title":           "%s 的設置",
 		"settings_bot_status":      "機器人狀態:",
@@ -179,7 +181,7 @@ var Translations = map[string]Translation{
 		"setting_language":        "語言",
 
 		"language_select":  "請選擇語言:",
-		"language_updated": "語言已更新為: %s",
+		"language_updated": "機器人語言已更新為: %s",
 
 		"warning_title":                  "⚠️ <b>安全提醒</b> [%s]",
 		"warning_restricted":             "用戶 %s 已被限制發送消息和媒體的權限",
@@ -272,7 +274,8 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_bio_link":        "Toggle bio link banning",
 		"cmd_desc_self_unban":             "Self-unban",
 
-		"user_not_admin": "Only group administrators can change settings.",
+		"user_not_admin":   "You are not an admin in this group, and cannot use this command",
+		"empty_group_list": "Group list is empty, please add the bot to your groups and set it as an administrator",
 
 		"settings_title":           "Settings for %s",
 		"settings_bot_status":      "Bot Status:",
@@ -306,7 +309,7 @@ var Translations = map[string]Translation{
 		"setting_language":        "Language",
 
 		"language_select":  "Please select a language:",
-		"language_updated": "Language updated to: %s",
+		"language_updated": "Bot language updated to: %s",
 
 		"warning_title":                  "⚠️ <b>Security Alert</b> [%s]",
 		"warning_restricted":             "User %s has been restricted from sending messages and media",

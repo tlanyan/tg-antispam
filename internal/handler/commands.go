@@ -78,37 +78,25 @@ func handleLanguageCommand(ctx *th.Context, bot *telego.Bot, message telego.Mess
 func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
 	language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
 
-	var helpText string
-	if message.Chat.Type == "private" {
-		helpText = fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
-			models.GetTranslation(language, "help_title"),
-			models.GetTranslation(language, "help_description"),
-			models.GetTranslation(language, "general_commands"),
-			models.GetTranslation(language, "help_cmd_help"),
-			models.GetTranslation(language, "help_cmd_self_unban"),
-			models.GetTranslation(language, "help_cmd_language"),
+	helpText := fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
+		models.GetTranslation(language, "help_title"),
+		models.GetTranslation(language, "help_description"),
+		models.GetTranslation(language, "general_commands"),
+		models.GetTranslation(language, "help_cmd_help"),
+		models.GetTranslation(language, "help_cmd_self_unban"),
+		models.GetTranslation(language, "help_cmd_language"),
 
-			models.GetTranslation(language, "settings_commands"),
-			models.GetTranslation(language, "help_cmd_settings"),
-			models.GetTranslation(language, "help_cmd_toggle_premium"),
-			models.GetTranslation(language, "help_cmd_toggle_cas"),
-			models.GetTranslation(language, "help_cmd_toggle_random_username"),
-			models.GetTranslation(language, "help_cmd_toggle_emoji_name"),
-			models.GetTranslation(language, "help_cmd_toggle_bio_link"),
-			models.GetTranslation(language, "help_cmd_toggle_notifications"),
-			models.GetTranslation(language, "help_cmd_language_group"),
-			models.GetTranslation(language, "help_note"),
-		)
-	} else {
-		// In group chat, suggest using private chat with the bot
-		botUsername, _ := getBotUsername(ctx.Context(), bot)
-		helpText = fmt.Sprintf("<b>%s</b>\n\n%s\n\n%s @%s",
-			models.GetTranslation(language, "help_title"),
-			models.GetTranslation(language, "help_description"),
-			models.GetTranslation(language, "please_use_private_chat"),
-			botUsername,
-		)
-	}
+		models.GetTranslation(language, "settings_commands"),
+		models.GetTranslation(language, "help_cmd_settings"),
+		models.GetTranslation(language, "help_cmd_toggle_premium"),
+		models.GetTranslation(language, "help_cmd_toggle_cas"),
+		models.GetTranslation(language, "help_cmd_toggle_random_username"),
+		models.GetTranslation(language, "help_cmd_toggle_emoji_name"),
+		models.GetTranslation(language, "help_cmd_toggle_bio_link"),
+		models.GetTranslation(language, "help_cmd_toggle_notifications"),
+		models.GetTranslation(language, "help_cmd_language_group"),
+		models.GetTranslation(language, "help_note"),
+	)
 
 	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 		ChatID:    telego.ChatID{ID: message.Chat.ID},
@@ -121,20 +109,20 @@ func sendHelpMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) e
 
 // handleSettingsCommand handles the /settings command
 func handleSettingsCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
-	language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
-
 	logger.Debugf("handleSettingsCommand called for message: %+v", message)
 	if message.Chat.Type == "private" {
 		return showGroupSelection(ctx, bot, message, "settings")
 	} else {
+		language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
 		// Check if sender is admin
 		senderIsAdmin, err := isUserAdmin(ctx.Context(), bot, message.Chat.ID, message.From.ID)
 		if err != nil || !senderIsAdmin {
+			language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
 			botUsername, _ := getBotUsername(ctx.Context(), bot)
 			_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 				ChatID: telego.ChatID{ID: message.Chat.ID},
 				Text: fmt.Sprintf("%s @%s",
-					models.GetTranslation(language, "please_use_private_chat"),
+					models.GetTranslation(language, "user_not_admin"),
 					botUsername),
 			})
 			return err
@@ -150,16 +138,27 @@ func handleToggleCommand(ctx *th.Context, bot *telego.Bot, message telego.Messag
 	if message.Chat.Type == "private" {
 		return showGroupSelection(ctx, bot, message, action)
 	} else {
-		language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
-
-		botUsername, _ := getBotUsername(ctx.Context(), bot)
-		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-			ChatID: telego.ChatID{ID: message.Chat.ID},
-			Text: fmt.Sprintf("%s @%s",
-				models.GetTranslation(language, "please_use_private_chat"),
-				botUsername),
-		})
-		return err
+		// Check if sender is admin
+		senderIsAdmin, err := isUserAdmin(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+		if err != nil || !senderIsAdmin {
+			language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
+			botUsername, _ := getBotUsername(ctx.Context(), bot)
+			_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+				ChatID: telego.ChatID{ID: message.Chat.ID},
+				Text: fmt.Sprintf("%s @%s",
+					models.GetTranslation(language, "user_not_admin"),
+					botUsername),
+			})
+			return err
+		}
+		callbackData := fmt.Sprintf("action:%s:%d", action, message.Chat.ID)
+		query := telego.CallbackQuery{
+			ID:      "",
+			From:    *message.From,
+			Data:    callbackData,
+			Message: &message,
+		}
+		return HandleCallbackQuery(ctx, bot, query)
 	}
 }
 
@@ -272,7 +271,7 @@ func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message
 
 	// 如果没有找到群组，提示用户输入群组ID
 	if len(adminGroups) == 0 {
-		msg, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			Text:      models.GetTranslation(language, "empty_group_list"),
 			ParseMode: "HTML",
@@ -280,7 +279,6 @@ func showGroupSelection(ctx *th.Context, bot *telego.Bot, message telego.Message
 		if err != nil {
 			logger.Warningf("Error sending message: %v", err)
 		}
-		logger.Infof("Sent message: %+v", msg)
 		return err
 	}
 
