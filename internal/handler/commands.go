@@ -58,13 +58,37 @@ func RegisterCommands(ctx *th.Context, bot *telego.Bot, message telego.Message) 
 	return false, nil
 }
 
+func checkAdmin(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+	// Check if sender is admin
+	senderIsAdmin, err := isUserAdmin(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+	if err != nil || !senderIsAdmin {
+		language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
+		botUsername, _ := getBotUsername(ctx.Context(), bot)
+		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			ChatID: telego.ChatID{ID: message.Chat.ID},
+			Text: fmt.Sprintf("%s @%s",
+				models.GetTranslation(language, "user_not_admin"),
+				botUsername),
+		})
+		return err
+	}
+	return nil
+}
+
 func handleLanguageCommand(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
 	groupInfo := service.GetGroupInfo(ctx.Context(), bot, message.Chat.ID, true)
-	// current chat
-	if groupInfo.AdminID == -1 {
-		groupInfo.AdminID = message.From.ID
-		groupInfo.IsAdmin = true
-		service.UpdateGroupInfo(groupInfo)
+	if message.Chat.Type == "private" {
+		// current chat
+		if groupInfo.AdminID == -1 {
+			groupInfo.AdminID = message.From.ID
+			groupInfo.IsAdmin = true
+			service.UpdateGroupInfo(groupInfo)
+		}
+	} else {
+		err := checkAdmin(ctx, bot, message)
+		if err != nil {
+			return err
+		}
 	}
 	query := telego.CallbackQuery{
 		ID:      "",            // 这里没有实际的回调ID，但函数调用中不会用到
@@ -113,21 +137,11 @@ func handleSettingsCommand(ctx *th.Context, bot *telego.Bot, message telego.Mess
 	if message.Chat.Type == "private" {
 		return showGroupSelection(ctx, bot, message, "settings")
 	} else {
-		language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
-		// Check if sender is admin
-		senderIsAdmin, err := isUserAdmin(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-		if err != nil || !senderIsAdmin {
-			language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
-			botUsername, _ := getBotUsername(ctx.Context(), bot)
-			_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-				ChatID: telego.ChatID{ID: message.Chat.ID},
-				Text: fmt.Sprintf("%s @%s",
-					models.GetTranslation(language, "user_not_admin"),
-					botUsername),
-			})
+		err := checkAdmin(ctx, bot, message)
+		if err != nil {
 			return err
 		}
-
+		language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
 		return showGroupSettings(ctx, bot, message, message.Chat.ID, language)
 	}
 }
@@ -138,17 +152,8 @@ func handleToggleCommand(ctx *th.Context, bot *telego.Bot, message telego.Messag
 	if message.Chat.Type == "private" {
 		return showGroupSelection(ctx, bot, message, action)
 	} else {
-		// Check if sender is admin
-		senderIsAdmin, err := isUserAdmin(ctx.Context(), bot, message.Chat.ID, message.From.ID)
-		if err != nil || !senderIsAdmin {
-			language := GetBotChatLang(ctx, bot, message.From.ID, message.Chat.ID)
-			botUsername, _ := getBotUsername(ctx.Context(), bot)
-			_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
-				ChatID: telego.ChatID{ID: message.Chat.ID},
-				Text: fmt.Sprintf("%s @%s",
-					models.GetTranslation(language, "user_not_admin"),
-					botUsername),
-			})
+		err := checkAdmin(ctx, bot, message)
+		if err != nil {
 			return err
 		}
 		callbackData := fmt.Sprintf("action:%s:%d", action, message.Chat.ID)
