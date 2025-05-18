@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mymmrac/telego"
@@ -24,6 +25,66 @@ var (
 
 	CasRecords = models.NewUserActionManager(10)
 )
+
+// In-memory pending deletion (if DB is off)
+type inMemoryPendingMsg struct {
+	ChatID    int64
+	MessageID int
+}
+
+var (
+	inMemoryMsgs   []inMemoryPendingMsg
+	inMemoryMsgsMu sync.Mutex
+)
+
+// addInMemoryPendingDeletion adds a message to the in-memory list.
+func addInMemoryPendingDeletion(chatID int64, messageID int) {
+	inMemoryMsgsMu.Lock()
+	defer inMemoryMsgsMu.Unlock()
+	inMemoryMsgs = append(inMemoryMsgs, inMemoryPendingMsg{ChatID: chatID, MessageID: messageID})
+	logger.Debugf("Added message %d in chat %d to in-memory deletion list.", messageID, chatID)
+}
+
+// removeInMemoryPendingDeletion removes a message from the in-memory list.
+func removeInMemoryPendingDeletion(chatID int64, messageID int) {
+	inMemoryMsgsMu.Lock()
+	defer inMemoryMsgsMu.Unlock()
+	found := false
+	for i, item := range inMemoryMsgs {
+		if item.ChatID == chatID && item.MessageID == messageID {
+			inMemoryMsgs = append(inMemoryMsgs[:i], inMemoryMsgs[i+1:]...)
+			logger.Debugf("Removed message %d in chat %d from in-memory deletion list.", messageID, chatID)
+			found = true
+			break
+		}
+	}
+	if !found {
+		logger.Debugf("Message %d in chat %d not found in in-memory deletion list for removal.", messageID, chatID)
+	}
+}
+
+// DeleteAllPendingInMemoryMessages attempts to delete all messages stored in the in-memory list.
+// This is called on shutdown if the database is not enabled.
+func DeleteAllPendingInMemoryMessages(bot *telego.Bot) {
+	inMemoryMsgsMu.Lock()
+	// Create a copy of the slice to iterate over
+	deletionsToProcess := make([]inMemoryPendingMsg, len(inMemoryMsgs))
+	copy(deletionsToProcess, inMemoryMsgs)
+	// Clear the original slice now that we have a copy and won't process them again from here.
+	inMemoryMsgs = []inMemoryPendingMsg{}
+	inMemoryMsgsMu.Unlock()
+
+	for _, item := range deletionsToProcess {
+		logger.Infof("Shutdown: Deleting message %d in chat %d", item.MessageID, item.ChatID)
+		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+			ChatID:    telego.ChatID{ID: item.ChatID},
+			MessageID: item.MessageID,
+		})
+	}
+	if len(deletionsToProcess) > 0 {
+		logger.Infof("Finished attempting to delete in-memory pending messages during shutdown.")
+	}
+}
 
 // ShouldRestrictUser determines if a user should be restricted
 func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupInfo, user telego.User) (bool, string) {
@@ -118,11 +179,7 @@ func IsRandomUsername(username string) bool {
 	}
 
 	digitsRegex := regexp.MustCompile(`\d{7}`)
-	if digitsRegex.MatchString(username) {
-		return true
-	}
-
-	return false
+	return digitsRegex.MatchString(username)
 }
 
 // RestrictUser restricts a user in a chat
@@ -270,14 +327,33 @@ func NotifyUserInGroup(ctx context.Context, bot *telego.Bot, groupID int64, user
 	}
 
 	// Delete the group message after 3 minutes
+	deletionDelay := 3 * time.Minute
+	deleteAt := time.Now().Add(deletionDelay)
+
+	if globalConfig != nil && globalConfig.Database.Enabled && service.GetPendingMsgRepository() != nil {
+		pendingMsg := &models.PendingMessage{
+			ChatID:    groupInfo.GroupID,
+			MessageID: msg.MessageID,
+			DeleteAt:  deleteAt,
+		}
+		service.GetPendingMsgRepository().AddPendingMsg(pendingMsg)
+	} else {
+		// Add to in-memory list if DB is not enabled
+		addInMemoryPendingDeletion(groupInfo.GroupID, msg.MessageID)
+	}
+
 	go func() {
-		time.Sleep(3 * time.Minute)
-		err := bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+		time.Sleep(deletionDelay)
+		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
 			ChatID:    telego.ChatID{ID: groupInfo.GroupID},
 			MessageID: msg.MessageID,
 		})
-		if err != nil {
-			logger.Warningf("Error deleting warning message: %v", err)
+
+		if globalConfig != nil && globalConfig.Database.Enabled && service.GetPendingMsgRepository() != nil {
+			service.GetPendingMsgRepository().RemovePendingMsg(groupInfo.GroupID, msg.MessageID)
+		} else {
+			// Remove from in-memory list
+			removeInMemoryPendingDeletion(groupInfo.GroupID, msg.MessageID)
 		}
 	}()
 }

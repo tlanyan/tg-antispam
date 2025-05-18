@@ -4,44 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"tg-antispam/internal/config"
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
-	"tg-antispam/internal/storage"
 
 	"github.com/mymmrac/telego"
 )
-
-var (
-	groupInfoManager = models.NewGroupInfoManager()
-	groupRepository  *storage.GroupRepository
-	banRepository    *storage.BanRepository
-	globalConfig     *config.Config
-)
-
-// Initialize initializes the service with configuration
-func Initialize(cfg *config.Config) {
-	globalConfig = cfg
-}
-
-// InitGroupRepository initializes the group repository if database is enabled
-func InitGroupRepository() {
-	if storage.DB != nil {
-		groupRepository = storage.NewGroupRepository(storage.DB)
-		if err := groupRepository.MigrateTable(); err != nil {
-			logger.Warningf("Error migrating GroupInfo table: %v", err)
-		}
-		// Load existing groups from the database
-		if err := storage.InitializeGroups(groupInfoManager); err != nil {
-			logger.Warningf("Error loading groups from database: %v", err)
-		}
-		// Initialize BanRecord table
-		banRepository = storage.NewBanRepository(storage.DB)
-		if err := banRepository.MigrateTable(); err != nil {
-			logger.Warningf("Error migrating BanRecord table: %v", err)
-		}
-	}
-}
 
 func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64, create bool) *models.GroupInfo {
 	// First check the in-memory cache
@@ -220,31 +187,4 @@ func GetGroupName(ctx context.Context, bot *telego.Bot, chatID int64) (string, s
 	}
 
 	return chatInfo.Title, groupLink
-}
-
-// CreateBanRecord stores a new ban record for the user in a group
-func CreateBanRecord(groupID, userID int64, reason string) {
-	if banRepository != nil {
-		record := &models.BanRecord{GroupID: groupID, UserID: userID, Reason: reason}
-		if err := banRepository.Create(record); err != nil {
-			logger.Warningf("Error creating ban record: %v", err)
-		}
-	}
-}
-
-// GetActiveBanRecordsByUser retrieves all active (not unbanned) ban records for a user
-func GetActiveBanRecordsByUser(userID int64) ([]*models.BanRecord, error) {
-	if banRepository != nil {
-		return banRepository.GetActiveByUser(userID)
-	}
-	return nil, nil
-}
-
-// MarkBanRecordUnbanned marks a user's ban record as unbanned for a specific group
-func MarkBanRecordUnbanned(groupID, userID int64, unbannedBy string) {
-	if banRepository != nil {
-		if err := banRepository.MarkUnbanned(groupID, userID, unbannedBy); err != nil {
-			logger.Warningf("Error marking ban record unbanned: %v", err)
-		}
-	}
 }

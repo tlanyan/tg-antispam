@@ -17,7 +17,7 @@ func Initialize(cfg *config.Config) {
 
 // SetupMessageHandlers configures all bot message and update handlers
 func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
-	service.InitGroupRepository()
+	service.InitRepositories()
 
 	bh.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 		ok, err := RegisterCommands(ctx, bot, message)

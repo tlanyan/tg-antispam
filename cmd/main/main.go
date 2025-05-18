@@ -13,7 +13,11 @@ import (
 	"tg-antispam/internal/config"
 	"tg-antispam/internal/handler"
 	"tg-antispam/internal/logger"
+	"tg-antispam/internal/models"
+	"tg-antispam/internal/service"
 	"tg-antispam/internal/storage"
+
+	"github.com/mymmrac/telego"
 )
 
 func main() {
@@ -33,7 +37,10 @@ func main() {
 		if err := storage.Initialize(cfg); err != nil {
 			log.Fatalf("Failed to initialize database: %v", err)
 		}
-		log.Println("Database connection established")
+		service.InitRepositories()
+		logger.Info("Database connection established and repositories initialized")
+	} else {
+		logger.Info("Database support is disabled. Repositories will not be initialized.")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -59,12 +66,21 @@ func main() {
 	handler.SetupMessageHandlers(botService.Handler, botService.Bot)
 	botService.Start()
 
+	handlePendingDeletions(botService, cfg)
+
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGQUIT)
 
 	// Wait for signal
 	sig := <-sigChan
-	log.Printf("Received signal: %v, shutting down...", sig)
+	logger.Infof("Received signal: %v, shutting down...", sig)
+
+	logger.Info("attempting to clear in-memory pending deletions...")
+	if botService.Bot != nil { // Ensure bot service is available
+		handler.DeleteAllPendingInMemoryMessages(botService.Bot)
+	} else {
+		logger.Warning("Bot service not available for shutdown cleanup of in-memory messages.")
+	}
 
 	// Gracefully shutdown server
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -75,4 +91,38 @@ func main() {
 	}
 
 	log.Println("Server gracefully stopped")
+}
+
+func handlePendingDeletions(botService *bot.BotService, cfg *config.Config) {
+	// After bot starts, load and process pending deletions if DB is enabled
+	if cfg.Database.Enabled && service.GetPendingMsgRepository() != nil {
+		logger.Info("Loading pending message deletions from database...")
+		pendingMsgs, err := service.GetPendingMsgRepository().GetAllPendingMsgs()
+		if err != nil {
+			logger.Errorf("Error loading pending deletions: %v", err)
+		} else {
+			logger.Infof("Found %d pending message deletions to process.", len(pendingMsgs))
+			for _, msg := range pendingMsgs {
+				go func(msg models.PendingMessage) {
+					durationUntilDelete := time.Until(msg.DeleteAt)
+					if durationUntilDelete < 0 {
+						durationUntilDelete = 0 // Delete immediately if past due
+					}
+
+					logger.Infof("Rescheduling deletion for message %d in chat %d in %v", msg.MessageID, msg.ChatID, durationUntilDelete)
+					time.Sleep(durationUntilDelete)
+
+					botService.Bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+						ChatID:    telego.ChatID{ID: msg.ChatID},
+						MessageID: msg.MessageID,
+					})
+
+					// Remove from DB after attempting deletion
+					if err = service.GetPendingMsgRepository().RemovePendingMsg(msg.ChatID, msg.MessageID); err != nil {
+						logger.Warningf("Error removing pending deletion from DB for chat %d, message %d: %v", msg.ChatID, msg.MessageID, err)
+					}
+				}(msg)
+			}
+		}
+	}
 }
