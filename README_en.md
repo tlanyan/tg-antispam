@@ -151,3 +151,4 @@ Webhook mode allows the bot to receive message updates in real-time, which helps
 
 - The bot needs administrator privileges to restrict users
 - Administrators need to have sent a private message to the bot first, otherwise the bot cannot send private notification messages to administrators
+- If database support is not enabled, you have to send manage commands in the group
