@@ -240,15 +240,16 @@ func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChat
 		}
 
 		// Check if user should be restricted
-		// shouldRestrict, reason := ShouldRestrictUser(ctx, bot, groupInfo, user)
-		// 	groupInfo := service.GetGroupInfo(ctx, bot, chatId, false)
-		// if !shouldRestrict && groupInfo.EnableCAS {
-		// 	shouldRestrict, reason = CasRequest(user.ID)
-		// }
+		groupInfo := service.GetGroupInfo(ctx, bot, chatId, false)
+		shouldRestrict, reason := ShouldRestrictUser(ctx, bot, groupInfo, user)
+		if !shouldRestrict && groupInfo.EnableCAS {
+			shouldRestrict, reason = CasRequest(user.ID)
+		}
 
-		// if shouldRestrict {
-		restrictUser(ctx, bot, chatId, user, "reason_join_group")
-		//}
+		if !shouldRestrict {
+			reason = "reason_join_group"
+		}
+		restrictUser(ctx, bot, chatId, user, reason)
 	}
 	return nil
 }
