@@ -114,11 +114,17 @@ func ClassifyWithGemini(apiKey string, model string, message string) (bool, erro
 				} `json:"parts"`
 			} `json:"content"`
 		} `json:"candidates"`
+		PromptFeedback struct {
+			BlockReason string `json:"blockReason"`
+		} `json:"promptFeedback"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return false, err
 	}
 	if len(result.Candidates) == 0 {
+		if result.PromptFeedback.BlockReason != "" {
+			return true, nil
+		}
 		return false, fmt.Errorf("no candidates returned from gemini API")
 	}
 	if len(result.Candidates[0].Content.Parts) == 0 {
