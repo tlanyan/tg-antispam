@@ -100,7 +100,7 @@ func handleGroupMessage(ctx *th.Context, bot *telego.Bot, message telego.Message
 
 	text := ""
 	// @TODO: more rules
-	if strings.Contains(message.Text, "https://t.me/") || (strings.Contains(message.Text, "@") && strings.HasPrefix(message.Text, "/")) {
+	if strings.Contains(message.Text, "https://t.me/") || (strings.Contains(message.Text, "@") && !strings.HasPrefix(message.Text, "/")) {
 		text = message.Text
 	} else if message.ForwardOrigin != nil {
 		text = message.Caption
@@ -162,18 +162,23 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 	newChatMember := update.ChatMember.NewChatMember
 	// skip restricted member
 	if newChatMember.MemberStatus() == telego.MemberStatusRestricted && newChatMember.MemberUser().ID != botID {
-		return nil
+		restrictedMember, ok := newChatMember.(*telego.ChatMemberRestricted)
+		if ok {
+			// 现在可以访问 CanSendMessages 属性
+			canSendMsg := restrictedMember.CanSendMessages
+			if !canSendMsg {
+				return nil
+			}
+		}
 	}
 
-	logger.Infof("new Chat member: %+v", newChatMember)
-
 	fromUser := update.ChatMember.From
-
 	// Skip updates related to the bot itself
 	if fromUser.ID == botID {
 		return nil
 	}
 
+	logger.Infof("new Chat member: %+v", newChatMember)
 	groupInfo := service.GetGroupInfo(ctx, bot, chatId, true)
 	// Track admin who promoted the bot
 	if newChatMember.MemberUser().ID == botID {
@@ -215,18 +220,6 @@ func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChat
 		if !fromUser.IsBot {
 			logger.Infof("Skipping first time join: %s", user.FirstName)
 			return nil
-		}
-
-		// 检查是否是受限制的成员
-		if newChatMember.MemberStatus() == telego.MemberStatusRestricted {
-			restrictedMember, ok := newChatMember.(*telego.ChatMemberRestricted)
-			if ok {
-				// 现在可以访问 CanSendMessages 属性
-				canSendMsg := restrictedMember.CanSendMessages
-				if !canSendMsg {
-					return nil
-				}
-			}
 		}
 
 		// Check if user has permission to send messages first

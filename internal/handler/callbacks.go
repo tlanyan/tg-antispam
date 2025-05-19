@@ -586,6 +586,7 @@ func SendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64,
 	// Get group info for language
 	language := GetBotChatLang(ctx, bot, userID, groupID)
 
+	logger.Infof("Send math verification message to user: %d, groupID: %d", userID, groupID)
 	// Send the math problem to the user
 	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
 		ChatID:    telego.ChatID{ID: userID},
