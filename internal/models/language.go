@@ -97,6 +97,7 @@ var Translations = map[string]Translation{
 		"reason_bio_link":        "个人简介包含可疑链接",
 		"reason_cas_blacklisted": "用户在 CAS 黑名单中",
 		"reason_ai_spam":         "被 AI 判定为垃圾消息",
+		"reason_join_group":      "加入群组",
 
 		// Toggle action response messages
 		"premium_ban_enabled":          "已启用默认封禁Premium用户",
@@ -217,7 +218,7 @@ var Translations = map[string]Translation{
 		"reason_bio_link":        "個人簡介包含可疑連結",
 		"reason_cas_blacklisted": "用戶在 CAS 黑名單中",
 		"reason_ai_spam":         "被 AI 判定為垃圾訊息",
-
+		"reason_join_group":      "加入群組",
 		// Toggle action response messages
 		"premium_ban_enabled":          "已啟用默認封禁Premium用戶",
 		"premium_ban_disabled":         "已禁用默認封禁Premium用戶",
@@ -345,6 +346,7 @@ var Translations = map[string]Translation{
 		"reason_bio_link":        "Bio contains suspicious links",
 		"reason_cas_blacklisted": "User is on the CAS blacklist",
 		"reason_ai_spam":         "Classified as spam by AI",
+		"reason_join_group":      "Join group",
 
 		// Toggle action response messages
 		"premium_ban_enabled":          "Premium user ban enabled",

@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -17,6 +18,9 @@ import (
 
 // unbannParamRegex matches the format "unban_groupID_userID"
 var unbannParamRegex = regexp.MustCompile(`^unban_(-?\d+)_(\d+)$`)
+
+// pendingUsers user and group id to pending security check
+var pendingUsers = make(map[int64]int64)
 
 // handleIncomingMessage processes new messages in chats
 func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
@@ -159,25 +163,13 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 		return nil
 	}
 
-	newChatMember := update.ChatMember.NewChatMember
-	// skip restricted member
-	if newChatMember.MemberStatus() == telego.MemberStatusRestricted && newChatMember.MemberUser().ID != botID {
-		restrictedMember, ok := newChatMember.(*telego.ChatMemberRestricted)
-		if ok {
-			// 现在可以访问 CanSendMessages 属性
-			canSendMsg := restrictedMember.CanSendMessages
-			if !canSendMsg {
-				return nil
-			}
-		}
-	}
-
 	fromUser := update.ChatMember.From
 	// Skip updates related to the bot itself
 	if fromUser.ID == botID {
 		return nil
 	}
 
+	newChatMember := update.ChatMember.NewChatMember
 	logger.Infof("new Chat member: %+v", newChatMember)
 	groupInfo := service.GetGroupInfo(ctx, bot, chatId, true)
 	// Track admin who promoted the bot
@@ -206,6 +198,10 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 }
 
 func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChatMember telego.ChatMember, fromUser telego.User) error {
+	if newChatMember.MemberStatus() == telego.MemberStatusLeft || newChatMember.MemberStatus() == telego.MemberStatusBanned {
+		return nil
+	}
+
 	groupInfo := service.GetGroupInfo(ctx, bot, chatId, false)
 	user := newChatMember.MemberUser()
 	if newChatMember.MemberIsMember() {
@@ -215,41 +211,56 @@ func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChat
 			return nil
 		}
 
-		// 首次入群，等待入群机器人处理
-		// @TODO: 需要优化，如果没有其它机器人，则需要处理
-		if !fromUser.IsBot {
-			logger.Infof("Skipping first time join: %s", user.FirstName)
+		// 首次入群，等待入群机器人处理，如果没有入群机器人则封禁
+		if !fromUser.IsBot && newChatMember.MemberStatus() == telego.MemberStatusMember {
+			if _, ok := pendingUsers[user.ID]; !ok {
+				pendingUsers[user.ID] = chatId
+				go func() {
+					time.Sleep(1 * time.Second)
+					if _, ok := pendingUsers[user.ID]; ok {
+						reason := "reason_join_group"
+						restrictUser(ctx, bot, chatId, user, reason)
+						delete(pendingUsers, user.ID)
+					}
+				}()
+			}
+
 			return nil
 		}
 
-		// Check if user has permission to send messages first
-		hasPermission, err := UserCanSendMessages(ctx.Context(), bot, chatId, user.ID)
-		if err != nil {
-			logger.Infof("Error checking user permissions: %v", err)
-			return nil
-		}
-
-		if !hasPermission {
-			logger.Infof("User %s is already restricted, skipping", user.FirstName)
-			return nil
+		// 如果其它机器人封禁了用户，则不限制用户
+		if newChatMember.MemberStatus() == telego.MemberStatusRestricted && user.ID != bot.ID() {
+			if restrictedMember, ok := newChatMember.(*telego.ChatMemberRestricted); ok {
+				// 现在可以访问 CanSendMessages 属性
+				canSendMsg := restrictedMember.CanSendMessages
+				if !canSendMsg {
+					delete(pendingUsers, user.ID)
+					return nil
+				}
+			}
 		}
 
 		// Check if user should be restricted
-		shouldRestrict, reason := ShouldRestrictUser(ctx, bot, groupInfo, user)
-		if !shouldRestrict && groupInfo.EnableCAS {
-			shouldRestrict, reason = CasRequest(user.ID)
-		}
+		// shouldRestrict, reason := ShouldRestrictUser(ctx, bot, groupInfo, user)
+		// if !shouldRestrict && groupInfo.EnableCAS {
+		// 	shouldRestrict, reason = CasRequest(user.ID)
+		// }
 
-		if shouldRestrict {
-			logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
-			RestrictUser(ctx.Context(), bot, chatId, user.ID)
-			// Send warning only if notifications are enabled
-			if groupInfo.EnableNotification {
-				SendWarning(ctx.Context(), bot, groupInfo.GroupID, user, reason)
-			}
-		}
+		// if shouldRestrict {
+		restrictUser(ctx, bot, chatId, user, "reason_join_group")
+		//}
 	}
 	return nil
+}
+
+func restrictUser(ctx *th.Context, bot *telego.Bot, chatId int64, user telego.User, reason string) {
+	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
+	RestrictUser(ctx.Context(), bot, chatId, user.ID)
+	// Send warning only if notifications are enabled
+	groupInfo := service.GetGroupInfo(ctx, bot, chatId, false)
+	if groupInfo.EnableNotification {
+		SendWarning(ctx.Context(), bot, groupInfo.GroupID, user, reason)
+	}
 }
 
 // handleMyChatMemberUpdate processes updates to the bot's own chat member status

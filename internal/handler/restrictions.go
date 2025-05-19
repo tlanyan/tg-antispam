@@ -381,31 +381,3 @@ func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID i
 		logger.Infof("Successfully unrestricted user %d in chat %d", userID, chatID)
 	}
 }
-
-// UserCanSendMessages checks if a user has permission to send messages in a chat
-func UserCanSendMessages(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) (bool, error) {
-	// Get the user's current status in the chat
-	chatMember, err := bot.GetChatMember(ctx, &telego.GetChatMemberParams{
-		ChatID: telego.ChatID{ID: chatID},
-		UserID: userID,
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	// If user is a restricted member, check the permission
-	if chatMember.MemberStatus() == telego.MemberStatusRestricted {
-		if restrictedMember, ok := chatMember.(*telego.ChatMemberRestricted); ok {
-			return restrictedMember.CanSendMessages, nil
-		}
-	}
-
-	// Users with admin or creator status can always send messages
-	if chatMember.MemberStatus() == telego.MemberStatusAdministrator || chatMember.MemberStatus() == telego.MemberStatusCreator {
-		return true, nil
-	}
-
-	// Regular members can send messages unless otherwise specified
-	return chatMember.MemberStatus() == telego.MemberStatusMember, nil
-}
