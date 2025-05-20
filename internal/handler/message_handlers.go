@@ -76,7 +76,7 @@ func handlePrivateMessage(ctx *th.Context, bot *telego.Bot, message telego.Messa
 				return err
 			}
 
-			return SendMathVerificationMessage(ctx, bot, groupID, userID, nil)
+			return SendMathVerificationMessage(ctx, bot, userID, groupID, nil)
 		}
 
 		// If not an unban request, continue with normal processing
