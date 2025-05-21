@@ -10,7 +10,7 @@ import (
 	"github.com/mymmrac/telego"
 )
 
-func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64, create bool) *models.GroupInfo {
+func GetGroupInfo(bot *telego.Bot, chatID int64, create bool) *models.GroupInfo {
 	// First check the in-memory cache
 	groupInfo := groupInfoManager.GetGroupInfo(chatID)
 	if groupInfo != nil {
@@ -50,7 +50,7 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64, create boo
 
 	// group
 	if chatID < 0 {
-		chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
+		chatInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
 			ChatID: telego.ChatID{ID: chatID},
 		})
 
@@ -74,7 +74,7 @@ func GetGroupInfo(ctx context.Context, bot *telego.Bot, chatID int64, create boo
 			groupInfo.GroupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
 		}
 
-		groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(ctx, bot, chatID)
+		groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(bot, chatID)
 	}
 
 	logger.Infof("Group info created: %+v", groupInfo)
@@ -101,15 +101,15 @@ func UpdateGroupInfo(groupInfo *models.GroupInfo) {
 	}
 }
 
-func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64, bool) {
+func GetBotPromoterID(bot *telego.Bot, chatID int64) (int64, bool) {
 	newBot, err := telego.NewBot(globalConfig.Bot.Token)
 	if err != nil {
 		logger.Warningf("Error creating temporary bot for admin check: %v", err)
 		return 0, false
 	}
-	defer newBot.Close(ctx)
+	defer newBot.Close(context.Background())
 
-	admins, err := newBot.GetChatAdministrators(ctx, &telego.GetChatAdministratorsParams{
+	admins, err := newBot.GetChatAdministrators(context.Background(), &telego.GetChatAdministratorsParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
@@ -165,8 +165,8 @@ func GetBotPromoterID(ctx context.Context, bot *telego.Bot, chatID int64) (int64
 }
 
 // GetLinkedGroupName gets a linked HTML representation of the group name with caching
-func GetGroupName(ctx context.Context, bot *telego.Bot, chatID int64) (string, string) {
-	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
+func GetGroupName(bot *telego.Bot, chatID int64) (string, string) {
+	chatInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {

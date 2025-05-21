@@ -87,7 +87,7 @@ func DeleteAllPendingInMemoryMessages(bot *telego.Bot) {
 }
 
 // ShouldRestrictUser determines if a user should be restricted
-func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, groupInfo *models.GroupInfo, user telego.User) (bool, string) {
+func ShouldRestrictUser(bot *telego.Bot, groupInfo *models.GroupInfo, user telego.User) (bool, string) {
 	if groupInfo.BanPremium && user.IsPremium {
 		return true, "reason_premium_user"
 	}
@@ -100,7 +100,7 @@ func ShouldRestrictUser(ctx context.Context, bot *telego.Bot, groupInfo *models.
 		return true, "reason_random_username"
 	}
 
-	if groupInfo.BanBioLink && HasLinksInBio(ctx, bot, user.ID) {
+	if groupInfo.BanBioLink && HasLinksInBio(bot, user.ID) {
 		return true, "reason_bio_link"
 	}
 
@@ -149,8 +149,8 @@ func CasRequest(userID int64) (bool, string) {
 }
 
 // HasLinksInBio checks if a user has t.me links in their bio
-func HasLinksInBio(ctx context.Context, bot *telego.Bot, userID int64) bool {
-	chat, err := bot.GetChat(ctx, &telego.GetChatParams{
+func HasLinksInBio(bot *telego.Bot, userID int64) bool {
+	chat, err := bot.GetChat(context.Background(), &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: userID},
 	})
 
@@ -183,10 +183,10 @@ func IsRandomUsername(username string) bool {
 }
 
 // RestrictUser restricts a user in a chat
-func RestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) {
+func RestrictUser(bot *telego.Bot, chatID int64, userID int64) {
 	permissions := telego.ChatPermissions{}
 
-	err := bot.RestrictChatMember(ctx, &telego.RestrictChatMemberParams{
+	err := bot.RestrictChatMember(context.Background(), &telego.RestrictChatMemberParams{
 		ChatID:      telego.ChatID{ID: chatID},
 		UserID:      userID,
 		Permissions: permissions,
@@ -216,15 +216,15 @@ func GetLinkedUserName(user telego.User) string {
 }
 
 // SendWarning sends a warning message about the restricted user
-func SendWarning(ctx context.Context, bot *telego.Bot, groupID int64, user telego.User, reason string) {
+func SendWarning(bot *telego.Bot, groupID int64, user telego.User, reason string) {
 
-	NotifyAdmin(ctx, bot, groupID, user, reason)
+	NotifyAdmin(bot, groupID, user, reason)
 
-	NotifyUserInGroup(ctx, bot, groupID, user, reason)
+	NotifyUserInGroup(bot, groupID, user, reason)
 }
 
-func NotifyAdmin(ctx context.Context, bot *telego.Bot, groupID int64, user telego.User, reason string) {
-	groupInfo := service.GetGroupInfo(ctx, bot, groupID, false)
+func NotifyAdmin(bot *telego.Bot, groupID int64, user telego.User, reason string) {
+	groupInfo := service.GetGroupInfo(bot, groupID, false)
 	if groupInfo == nil {
 		return
 	}
@@ -261,7 +261,7 @@ func NotifyAdmin(ctx context.Context, bot *telego.Bot, groupID int64, user teleg
 			},
 		}
 
-		_, err := bot.SendMessage(ctx, &telego.SendMessageParams{
+		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:      telego.ChatID{ID: groupInfo.AdminID},
 			Text:        message,
 			ParseMode:   "HTML",
@@ -273,15 +273,15 @@ func NotifyAdmin(ctx context.Context, bot *telego.Bot, groupID int64, user teleg
 	}
 }
 
-func NotifyUserInGroup(ctx context.Context, bot *telego.Bot, groupID int64, user telego.User, reason string) {
+func NotifyUserInGroup(bot *telego.Bot, groupID int64, user telego.User, reason string) {
 	// Get bot username to create the deep link
-	botInfo, err := bot.GetMe(ctx)
+	botInfo, err := bot.GetMe(context.Background())
 	if err != nil {
 		logger.Warningf("Error getting bot info: %v", err)
 		return
 	}
 
-	groupInfo := service.GetGroupInfo(ctx, bot, groupID, false)
+	groupInfo := service.GetGroupInfo(bot, groupID, false)
 	if groupInfo == nil {
 		return
 	}
@@ -314,7 +314,7 @@ func NotifyUserInGroup(ctx context.Context, bot *telego.Bot, groupID int64, user
 	}
 
 	// Send notification to the group
-	msg, err := bot.SendMessage(ctx, &telego.SendMessageParams{
+	msg, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 		ChatID:      telego.ChatID{ID: groupInfo.GroupID},
 		Text:        selfUnbanMessage,
 		ParseMode:   "HTML",
@@ -359,8 +359,8 @@ func NotifyUserInGroup(ctx context.Context, bot *telego.Bot, groupID int64, user
 }
 
 // UnrestrictUser removes restrictions from a user in a chat
-func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) {
-	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
+func UnrestrictUser(bot *telego.Bot, chatID int64, userID int64) {
+	chatInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 
@@ -369,7 +369,7 @@ func UnrestrictUser(ctx context.Context, bot *telego.Bot, chatID int64, userID i
 		permissions = *chatInfo.Permissions
 	}
 
-	err = bot.RestrictChatMember(ctx, &telego.RestrictChatMemberParams{
+	err = bot.RestrictChatMember(context.Background(), &telego.RestrictChatMemberParams{
 		ChatID:      telego.ChatID{ID: chatID},
 		UserID:      userID,
 		Permissions: permissions,

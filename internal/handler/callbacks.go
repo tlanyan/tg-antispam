@@ -1,13 +1,13 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strconv"
 	"strings"
 
 	"github.com/mymmrac/telego"
-	th "github.com/mymmrac/telego/telegohandler"
 
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
@@ -24,7 +24,7 @@ var verificationAnswers = make(map[int64]struct {
 var verificationAttempts = make(map[int64]int)
 
 // HandleCallbackQuery processes callback queries from inline keyboards
-func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+func HandleCallbackQuery(bot *telego.Bot, query telego.CallbackQuery) error {
 	// Skip if no data
 	if query.Data == "" {
 		return nil
@@ -34,24 +34,24 @@ func HandleCallbackQuery(ctx *th.Context, bot *telego.Bot, query telego.Callback
 
 	// Handle different callback types based on prefix
 	if strings.HasPrefix(query.Data, "unban:") {
-		return handleUnbanCallback(ctx, bot, query)
+		return handleUnbanCallback(bot, query)
 	} else if strings.HasPrefix(query.Data, "self_unban:") {
-		return handleSelfUnbanCallback(ctx, bot, query)
+		return handleSelfUnbanCallback(bot, query)
 	} else if strings.HasPrefix(query.Data, "lang:") {
-		return handleLanguageCallback(ctx, bot, query)
+		return handleLanguageCallback(bot, query)
 	} else if strings.HasPrefix(query.Data, "group:") {
-		return handleGroupSelectionCallback(ctx, bot, query)
+		return handleGroupSelectionCallback(bot, query)
 	} else if strings.HasPrefix(query.Data, "action:") {
-		return handleActionSelectionCallback(ctx, bot, query)
+		return handleActionSelectionCallback(bot, query)
 	} else if strings.HasPrefix(query.Data, "ban:") {
-		return handleBanCallback(ctx, bot, query)
+		return handleBanCallback(bot, query)
 	}
 
 	return nil
 }
 
 // handleUnbanCallback processes a request to unban a user
-func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+func handleUnbanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	groupID, userID, err := getGroupAndUserID(query.Data)
 	if err != nil {
 		logger.Warningf("Invalid callback data in unban callback: %s", query.Data)
@@ -60,10 +60,10 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 
 	logger.Infof("Unban callback received: %+v, groupID=%d, userID=%d", query, groupID, userID)
 	// Check if the callback sender is an admin in the chat
-	isAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
+	isAdmin, err := isUserAdmin(bot, groupID, query.From.ID)
 	if err != nil || !isAdmin {
 		// Inform user they don't have permission
-		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
 			Text:            "You don't have permission to unban users.",
 			ShowAlert:       true,
@@ -72,15 +72,15 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 	}
 
 	// Unrestrict the user
-	UnrestrictUser(ctx.Context(), bot, groupID, userID)
+	UnrestrictUser(bot, groupID, userID)
 	// Update ban_records to mark as unbanned
 	service.MarkBanRecordUnbanned(groupID, userID, "admin")
 
 	// Get group info for language
-	language := GetBotChatLang(ctx, bot, userID, groupID)
+	language := GetBotChatLang(bot, userID, groupID)
 
 	// Notify the admin that the action was successful
-	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+	err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 		CallbackQueryID: query.ID,
 		Text:            models.GetTranslation(language, "warning_user_unbanned"),
 	})
@@ -88,7 +88,7 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 		logger.Warningf("Error answering callback query: %v", err)
 	}
 
-	linkedUserName, err := getLinkedUserName(ctx, bot, userID)
+	linkedUserName, err := getLinkedUserName(bot, userID)
 	if err != nil {
 		logger.Warningf("Error getting linked user name: %v", err)
 		return err
@@ -106,7 +106,7 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 				{banButton},
 			}
 
-			bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+			bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
 				MessageID:   accessibleMsg.MessageID,
 				Text:        fmt.Sprintf(models.GetTranslation(language, "warning_unbanned_message"), linkedUserName),
@@ -120,7 +120,7 @@ func handleUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Callback
 }
 
 // handleBanCallback processes a request to ban a user
-func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+func handleBanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	groupID, userID, err := getGroupAndUserID(query.Data)
 	if err != nil {
 		logger.Warningf("Invalid callback data in ban callback: %s", query.Data)
@@ -129,10 +129,10 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 
 	logger.Infof("Ban callback received: %+v, groupID=%d, userID=%d", query, groupID, userID)
 	// Check if the callback sender is an admin in the chat
-	isAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
+	isAdmin, err := isUserAdmin(bot, groupID, query.From.ID)
 	if err != nil || !isAdmin {
 		// Inform user they don't have permission
-		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
 			Text:            "You don't have permission to ban users.",
 			ShowAlert:       true,
@@ -141,10 +141,10 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 	}
 
 	// Get group info for language
-	language := GetBotChatLang(ctx, bot, userID, groupID)
+	language := GetBotChatLang(bot, userID, groupID)
 
 	// Restrict the user (ban from sending messages and media)
-	err = bot.RestrictChatMember(ctx.Context(), &telego.RestrictChatMemberParams{
+	err = bot.RestrictChatMember(context.Background(), &telego.RestrictChatMemberParams{
 		ChatID:      telego.ChatID{ID: groupID},
 		UserID:      userID,
 		Permissions: telego.ChatPermissions{},
@@ -155,7 +155,7 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 	}
 
 	// Notify the admin that the action was successful
-	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+	err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 		CallbackQueryID: query.ID,
 		Text:            models.GetTranslation(language, "user_banned"),
 	})
@@ -163,7 +163,7 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 		logger.Warningf("Error answering callback query: %v", err)
 	}
 
-	linkedUserName, err := getLinkedUserName(ctx, bot, userID)
+	linkedUserName, err := getLinkedUserName(bot, userID)
 	if err != nil {
 		logger.Warningf("Error getting linked user name: %v", err)
 		return err
@@ -181,7 +181,7 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 				{unbanButton},
 			}
 
-			bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+			bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
 				MessageID:   accessibleMsg.MessageID,
 				Text:        fmt.Sprintf(models.GetTranslation(language, "warning_banned_message"), linkedUserName),
@@ -195,7 +195,7 @@ func handleBanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQu
 }
 
 // handleLanguageCallback processes language selection callbacks
-func handleLanguageCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+func handleLanguageCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	// Format: lang:language:chatID
 	parts := strings.Split(query.Data, ":")
 	if len(parts) != 3 {
@@ -211,24 +211,24 @@ func handleLanguageCallback(ctx *th.Context, bot *telego.Bot, query telego.Callb
 	}
 
 	// 直接传递变量给setLanguage函数处理
-	return setLanguage(ctx, bot, query, groupID, language)
+	return setLanguage(bot, query, groupID, language)
 }
 
 // setLanguage updates the language setting for a group
-func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, groupID int64, language string) error {
+func setLanguage(bot *telego.Bot, query telego.CallbackQuery, groupID int64, language string) error {
 	logger.Infof("Setting language for group: %d, language: %s", groupID, language)
 	// Get the group info
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID, false)
+	groupInfo := service.GetGroupInfo(bot, groupID, false)
 	if groupInfo == nil {
 		logger.Warningf("Group info not found: %d", groupID)
 		return nil
 	}
 	// Check if the user is an admin
 	if groupInfo.AdminID != query.From.ID {
-		isAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
+		isAdmin, err := isUserAdmin(bot, groupID, query.From.ID)
 		if err != nil || !isAdmin {
 			// Inform user they don't have permission
-			err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 				CallbackQueryID: query.ID,
 				Text:            "You don't have permission to change settings.",
 				ShowAlert:       true,
@@ -242,7 +242,7 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, g
 	service.UpdateGroupInfo(groupInfo)
 
 	// Notify about the change
-	err := bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+	err := bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 		CallbackQueryID: query.ID,
 		Text:            fmt.Sprintf(models.GetTranslation(language, "language_updated"), getLanguageName(language)),
 	})
@@ -257,7 +257,7 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, g
 		// Update the message
 		if query.Message != nil {
 			if accessibleMsg, ok := query.Message.(*telego.Message); ok {
-				_, editErr := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+				_, editErr := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 					ChatID:      telego.ChatID{ID: accessibleMsg.Chat.ID},
 					MessageID:   accessibleMsg.MessageID,
 					Text:        settingsText,
@@ -272,7 +272,7 @@ func setLanguage(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, g
 	} else {
 		if query.Message != nil {
 			if accessibleMsg, ok := query.Message.(*telego.Message); ok {
-				_, editErr := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+				_, editErr := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 					ChatID:    telego.ChatID{ID: accessibleMsg.Chat.ID},
 					MessageID: accessibleMsg.MessageID,
 					Text:      fmt.Sprintf(models.GetTranslation(language, "language_updated"), getLanguageName(language)),
@@ -303,7 +303,7 @@ func getLanguageName(langCode string) string {
 }
 
 // 处理群组选择回调
-func handleGroupSelectionCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+func handleGroupSelectionCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	// 提取群组ID
 	parts := strings.Split(query.Data, ":")
 	if len(parts) != 3 {
@@ -320,7 +320,7 @@ func handleGroupSelectionCallback(ctx *th.Context, bot *telego.Bot, query telego
 	logger.Infof("Group selection callback received: group=%d, action=%s", groupID, action)
 
 	// 通知用户已收到请求
-	err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+	err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 		CallbackQueryID: query.ID,
 		Text:            "正在处理您的请求...",
 	})
@@ -332,12 +332,12 @@ func handleGroupSelectionCallback(ctx *th.Context, bot *telego.Bot, query telego
 	if query.Message != nil {
 		if message, ok := query.Message.(*telego.Message); ok {
 			// 获取用户语言设置
-			language := GetBotChatLang(ctx, bot, message.Chat.ID, groupID)
+			language := GetBotChatLang(bot, message.Chat.ID, groupID)
 
 			switch action {
 			case "settings":
 				// 显示群组设置
-				return showGroupSettings(ctx, bot, *message, groupID, language)
+				return showGroupSettings(bot, *message, groupID, language)
 			default:
 				// 对于其他操作类型，创建action回调
 				callbackData := fmt.Sprintf("action:%s:%d", action, groupID)
@@ -347,7 +347,7 @@ func handleGroupSelectionCallback(ctx *th.Context, bot *telego.Bot, query telego
 					Data:    callbackData,
 					Message: query.Message,
 				}
-				return handleActionSelectionCallback(ctx, bot, actionQuery)
+				return handleActionSelectionCallback(bot, actionQuery)
 			}
 		}
 	}
@@ -356,7 +356,7 @@ func handleGroupSelectionCallback(ctx *th.Context, bot *telego.Bot, query telego
 }
 
 // 处理设置项操作回调
-func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+func handleActionSelectionCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	// 提取操作和群组ID
 	parts := strings.Split(query.Data, ":")
 	if len(parts) != 3 {
@@ -374,7 +374,7 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 
 	if query.ID != "" {
 		// 通知用户已收到请求
-		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
 			Text:            "正在处理您的请求...",
 		})
@@ -384,7 +384,7 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 	}
 
 	// 获取群组信息
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID, false)
+	groupInfo := service.GetGroupInfo(bot, groupID, false)
 	if groupInfo == nil {
 		logger.Warningf("Group info not found: %d", groupID)
 		return nil
@@ -392,10 +392,10 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 
 	// 检查用户是否是管理员
 	if groupInfo.AdminID != query.From.ID {
-		isAdmin, err := isUserAdmin(ctx.Context(), bot, groupID, query.From.ID)
+		isAdmin, err := isUserAdmin(bot, groupID, query.From.ID)
 		if err != nil || !isAdmin {
 			// 通知用户没有权限
-			err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+			err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 				CallbackQueryID: query.ID,
 				Text:            "您没有权限更改设置",
 				ShowAlert:       true,
@@ -405,7 +405,7 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 	}
 
 	// 处理不同的操作
-	language := GetBotChatLang(ctx, bot, query.From.ID, groupID)
+	language := GetBotChatLang(bot, query.From.ID, groupID)
 
 	var updateMessage string
 
@@ -466,7 +466,7 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 
 	case "language_group":
 		// 显示语言选择界面
-		return showLanguageSelection(ctx, bot, query, groupID, language)
+		return showLanguageSelection(bot, query, groupID, language)
 	}
 
 	// 保存群组设置
@@ -474,7 +474,7 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 
 	// 通知用户设置已更新
 	if updateMessage != "" {
-		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
 			Text:            updateMessage,
 		})
@@ -486,7 +486,7 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 	// 更新设置消息
 	if query.Message != nil {
 		if message, ok := query.Message.(*telego.Message); ok {
-			return showGroupSettings(ctx, bot, *message, groupID, language)
+			return showGroupSettings(bot, *message, groupID, language)
 		}
 	}
 
@@ -494,7 +494,7 @@ func handleActionSelectionCallback(ctx *th.Context, bot *telego.Bot, query teleg
 }
 
 // showLanguageSelection displays language selection options
-func showLanguageSelection(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery, groupID int64, language string) error {
+func showLanguageSelection(bot *telego.Bot, query telego.CallbackQuery, groupID int64, language string) error {
 	// 创建语言选择键盘
 	keyboard := [][]telego.InlineKeyboardButton{
 		{
@@ -523,7 +523,7 @@ func showLanguageSelection(ctx *th.Context, bot *telego.Bot, query telego.Callba
 	if query.ID != "" {
 		if query.Message != nil {
 			if message, ok := query.Message.(*telego.Message); ok {
-				_, err := bot.EditMessageText(ctx.Context(), &telego.EditMessageTextParams{
+				_, err := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 					ChatID:      telego.ChatID{ID: message.Chat.ID},
 					MessageID:   message.MessageID,
 					Text:        selectText,
@@ -545,7 +545,7 @@ func showLanguageSelection(ctx *th.Context, bot *telego.Bot, query telego.Callba
 			return nil
 		}
 
-		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:      telego.ChatID{ID: message.Chat.ID},
 			Text:        selectText,
 			ParseMode:   "HTML",
@@ -558,7 +558,7 @@ func showLanguageSelection(ctx *th.Context, bot *telego.Bot, query telego.Callba
 	return nil
 }
 
-func SendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64, groupID int64, query *telego.CallbackQuery) error {
+func SendMathVerificationMessage(bot *telego.Bot, userID int64, groupID int64, query *telego.CallbackQuery) error {
 	// Generate a random math problem
 	num1 := rand.Intn(100)
 	num2 := rand.Intn(100)
@@ -584,11 +584,11 @@ func SendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64,
 	verificationAttempts[userID] = 0
 
 	// Get group info for language
-	language := GetBotChatLang(ctx, bot, userID, groupID)
+	language := GetBotChatLang(bot, userID, groupID)
 
 	logger.Infof("Send math verification message to user: %d, groupID: %d", userID, groupID)
 	// Send the math problem to the user
-	_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 		ChatID:    telego.ChatID{ID: userID},
 		Text:      fmt.Sprintf(models.GetTranslation(language, "math_verification"), num1, operator, num2),
 		ParseMode: "HTML",
@@ -601,7 +601,7 @@ func SendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64,
 
 	// Answer the callback query
 	if query != nil {
-		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
 		})
 		if err != nil {
@@ -613,7 +613,7 @@ func SendMathVerificationMessage(ctx *th.Context, bot *telego.Bot, userID int64,
 }
 
 // handleSelfUnbanCallback processes a request for a user to unban themselves
-func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.CallbackQuery) error {
+func handleSelfUnbanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	groupID, userID, err := getGroupAndUserID(query.Data)
 	if err != nil {
 		logger.Warningf("Invalid callback data in self-unban callback: %s", query.Data)
@@ -622,7 +622,7 @@ func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Call
 
 	// Verify that the user clicking the button is the restricted user
 	if query.From.ID != userID {
-		err = bot.AnswerCallbackQuery(ctx.Context(), &telego.AnswerCallbackQueryParams{
+		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
 			Text:            "只有被限制的用户才能使用此功能。",
 			ShowAlert:       true,
@@ -632,11 +632,11 @@ func handleSelfUnbanCallback(ctx *th.Context, bot *telego.Bot, query telego.Call
 
 	logger.Infof("handleSelfUnbanCallback, userID: %d, groupID: %d", userID, groupID)
 
-	return SendMathVerificationMessage(ctx, bot, userID, groupID, &query)
+	return SendMathVerificationMessage(bot, userID, groupID, &query)
 }
 
 // HandleMathVerification processes the user's answer to the math verification
-func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 	userID := message.From.ID
 	// Check if the user has a pending verification
 	expectedAnswer, exists := verificationAnswers[userID]
@@ -644,9 +644,9 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 		return nil // No pending verification
 	}
 	groupID := expectedAnswer.GroupID
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, groupID, false)
+	groupInfo := service.GetGroupInfo(bot, groupID, false)
 	if groupInfo == nil {
-		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			Text:      "无法确定需要解封的群组。请联系管理员解决。\nUnable to determine which group to unban. Please contact the administrator to resolve.",
 			ParseMode: "HTML",
@@ -663,7 +663,7 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 	}
 
 	// Get group info for language
-	language := GetBotChatLang(ctx, bot, message.Chat.ID, groupID)
+	language := GetBotChatLang(bot, message.Chat.ID, groupID)
 
 	// Check if the answer is correct
 	if userAnswer == expectedAnswer.Answer {
@@ -673,12 +673,12 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 		delete(verificationAttempts, userID)
 
 		// Unrestrict the user in the group
-		UnrestrictUser(ctx.Context(), bot, groupID, userID)
+		UnrestrictUser(bot, groupID, userID)
 		// Update ban_records to mark as unbanned
 		service.MarkBanRecordUnbanned(groupID, userID, "self")
 
 		// Send success message
-		_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+		_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			Text:      models.GetTranslation(language, "math_verification_success"),
 			ParseMode: "HTML",
@@ -688,10 +688,10 @@ func HandleMathVerification(ctx *th.Context, bot *telego.Bot, message telego.Mes
 		count := verificationAttempts[userID] + 1
 		verificationAttempts[userID] = count
 		if count >= 3 {
-			err = SendMathVerificationMessage(ctx, bot, userID, expectedAnswer.GroupID, nil)
+			err = SendMathVerificationMessage(bot, userID, expectedAnswer.GroupID, nil)
 		} else {
 			// Send failure message
-			_, err = bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+			_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 				ChatID:    telego.ChatID{ID: message.Chat.ID},
 				Text:      models.GetTranslation(language, "math_verification_failed"),
 				ParseMode: "HTML",

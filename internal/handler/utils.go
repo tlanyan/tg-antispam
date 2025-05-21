@@ -12,12 +12,11 @@ import (
 	"tg-antispam/internal/service"
 
 	"github.com/mymmrac/telego"
-	th "github.com/mymmrac/telego/telegohandler"
 )
 
 // isUserAdmin checks if a user is an admin in a chat
-func isUserAdmin(ctx context.Context, bot *telego.Bot, chatID int64, userID int64) (bool, error) {
-	admins, err := bot.GetChatAdministrators(ctx, &telego.GetChatAdministratorsParams{
+func isUserAdmin(bot *telego.Bot, chatID int64, userID int64) (bool, error) {
+	admins, err := bot.GetChatAdministrators(context.Background(), &telego.GetChatAdministratorsParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
@@ -34,8 +33,8 @@ func isUserAdmin(ctx context.Context, bot *telego.Bot, chatID int64, userID int6
 }
 
 // getBotUsername retrieves the bot's username
-func getBotUsername(ctx context.Context, bot *telego.Bot) (string, error) {
-	botUser, err := bot.GetMe(ctx)
+func getBotUsername(bot *telego.Bot) (string, error) {
+	botUser, err := bot.GetMe(context.Background())
 	if err != nil {
 		return "", err
 	}
@@ -61,9 +60,9 @@ func getGroupAndUserID(data string) (int64, int64, error) {
 	return groupID, userID, nil
 }
 
-func getLinkedUserName(ctx *th.Context, bot *telego.Bot, userID int64) (string, error) {
+func getLinkedUserName(bot *telego.Bot, userID int64) (string, error) {
 	// Get user information
-	userInfo, err := bot.GetChat(ctx.Context(), &telego.GetChatParams{
+	userInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: userID},
 	})
 	if err != nil {
@@ -137,10 +136,10 @@ func ClassifyWithGemini(apiKey string, model string, message string) (bool, erro
 	return false, nil
 }
 
-func GetBotChatLang(ctx *th.Context, bot *telego.Bot, chatID int64, groupID int64) string {
-	groupInfo := service.GetGroupInfo(ctx.Context(), bot, chatID, false)
+func GetBotChatLang(bot *telego.Bot, chatID int64, groupID int64) string {
+	groupInfo := service.GetGroupInfo(bot, chatID, false)
 	if groupInfo == nil {
-		groupInfo = service.GetGroupInfo(ctx.Context(), bot, groupID, true)
+		groupInfo = service.GetGroupInfo(bot, groupID, true)
 	}
 	return groupInfo.Language
 }

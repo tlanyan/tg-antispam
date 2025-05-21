@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/mymmrac/telego"
-	th "github.com/mymmrac/telego/telegohandler"
 
 	"tg-antispam/internal/config"
 	"tg-antispam/internal/logger"
@@ -23,7 +23,7 @@ var unbannParamRegex = regexp.MustCompile(`^unban_(-?\d+)_(\d+)$`)
 var pendingUsers = make(map[int64]int64)
 
 // handleIncomingMessage processes new messages in chats
-func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+func handleIncomingMessage(bot *telego.Bot, message telego.Message) error {
 	// Skip if no sender information or sender is a bot
 	if message.From == nil || message.From.IsBot {
 		return nil
@@ -37,7 +37,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 
 	// Check for math verification answers first
 	if message.Chat.Type == "private" {
-		return handlePrivateMessage(ctx, bot, message)
+		return handlePrivateMessage(bot, message)
 	}
 
 	if message.Chat.ID > 0 {
@@ -46,7 +46,7 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 		logger.Infof("private chat message call stack: %s", stackTrace)
 
 		// Prompt user to send /help command
-		_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			Text:      "请发送 /help 获取使用帮助。\nPlease send /help to get help.",
 			ParseMode: "HTML",
@@ -54,10 +54,10 @@ func handleIncomingMessage(ctx *th.Context, bot *telego.Bot, message telego.Mess
 		return err
 	}
 
-	return handleGroupMessage(ctx, bot, message)
+	return handleGroupMessage(bot, message)
 }
 
-func handlePrivateMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+func handlePrivateMessage(bot *telego.Bot, message telego.Message) error {
 	// Handle /start command with parameters for self-unban
 	if message.Text != "" && strings.HasPrefix(message.Text, "/start ") {
 		startParam := strings.TrimPrefix(message.Text, "/start ")
@@ -68,7 +68,7 @@ func handlePrivateMessage(ctx *th.Context, bot *telego.Bot, message telego.Messa
 
 			// Verify that the user requesting unban is the same user who was banned
 			if message.From.ID != userID {
-				_, err := bot.SendMessage(ctx.Context(), &telego.SendMessageParams{
+				_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 					ChatID:    telego.ChatID{ID: message.Chat.ID},
 					Text:      "不能为其他用户解除限制。\nYou cannot unban for other users.",
 					ParseMode: "HTML",
@@ -76,14 +76,14 @@ func handlePrivateMessage(ctx *th.Context, bot *telego.Bot, message telego.Messa
 				return err
 			}
 
-			return SendMathVerificationMessage(ctx, bot, userID, groupID, nil)
+			return SendMathVerificationMessage(bot, userID, groupID, nil)
 		}
 
 		// If not an unban request, continue with normal processing
 	}
 
 	// Check for pending math verification answer
-	if err := HandleMathVerification(ctx, bot, message); err != nil {
+	if err := HandleMathVerification(bot, message); err != nil {
 		logger.Warningf("Error handling math verification: %v", err)
 	}
 
@@ -91,9 +91,9 @@ func handlePrivateMessage(ctx *th.Context, bot *telego.Bot, message telego.Messa
 	return nil
 }
 
-func handleGroupMessage(ctx *th.Context, bot *telego.Bot, message telego.Message) error {
+func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 	cfg := config.Get()
-	groupInfo := service.GetGroupInfo(ctx, bot, message.Chat.ID, true)
+	groupInfo := service.GetGroupInfo(bot, message.Chat.ID, true)
 	if !groupInfo.IsAdmin {
 		return nil
 	}
@@ -132,16 +132,16 @@ func handleGroupMessage(ctx *th.Context, bot *telego.Bot, message telego.Message
 
 	if shouldRestrict {
 		logger.Infof("suspicious message text: %s, delete and restrict user: %d", text, message.From.ID)
-		bot.DeleteMessage(ctx.Context(), &telego.DeleteMessageParams{
+		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			MessageID: message.MessageID,
 		})
-		RestrictUser(ctx.Context(), bot, message.Chat.ID, message.From.ID)
+		RestrictUser(bot, message.Chat.ID, message.From.ID)
 		// Record the ban event in database
 		service.CreateBanRecord(message.Chat.ID, message.From.ID, reason)
 		// Send warning only if notifications are enabled
 		if groupInfo.EnableNotification {
-			SendWarning(ctx.Context(), bot, groupInfo.GroupID, *message.From, reason)
+			SendWarning(bot, groupInfo.GroupID, *message.From, reason)
 		}
 	}
 
@@ -149,7 +149,7 @@ func handleGroupMessage(ctx *th.Context, bot *telego.Bot, message telego.Message
 }
 
 // handleChatMemberUpdate processes updates to chat members
-func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Update) error {
+func handleChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 	botID := bot.ID()
 	// Process ChatMember updates (when users join chat or change status)
 	if update.ChatMember == nil {
@@ -171,7 +171,7 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 
 	newChatMember := update.ChatMember.NewChatMember
 	logger.Infof("new Chat member: %+v", newChatMember)
-	groupInfo := service.GetGroupInfo(ctx, bot, chatId, true)
+	groupInfo := service.GetGroupInfo(bot, chatId, true)
 	// Track admin who promoted the bot
 	if newChatMember.MemberUser().ID == botID {
 		// Check if the bot's status was changed to admin
@@ -194,10 +194,10 @@ func handleChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Upda
 		return nil
 	}
 
-	return checkRestrictedUser(ctx, bot, chatId, newChatMember, fromUser)
+	return checkRestrictedUser(bot, chatId, newChatMember, fromUser)
 }
 
-func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChatMember telego.ChatMember, fromUser telego.User) error {
+func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.ChatMember, fromUser telego.User) error {
 	if newChatMember.MemberStatus() == telego.MemberStatusLeft || newChatMember.MemberStatus() == telego.MemberStatusBanned {
 		return nil
 	}
@@ -218,7 +218,7 @@ func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChat
 					time.Sleep(1 * time.Second)
 					if _, ok := pendingUsers[user.ID]; ok {
 						reason := "reason_join_group"
-						restrictUser(ctx, bot, chatId, user, reason)
+						restrictUser(bot, chatId, user, reason)
 						delete(pendingUsers, user.ID)
 					}
 				}()
@@ -240,8 +240,8 @@ func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChat
 		}
 
 		// Check if user should be restricted
-		groupInfo := service.GetGroupInfo(ctx, bot, chatId, false)
-		shouldRestrict, reason := ShouldRestrictUser(ctx, bot, groupInfo, user)
+		groupInfo := service.GetGroupInfo(bot, chatId, false)
+		shouldRestrict, reason := ShouldRestrictUser(bot, groupInfo, user)
 		if !shouldRestrict && groupInfo.EnableCAS {
 			shouldRestrict, reason = CasRequest(user.ID)
 		}
@@ -249,23 +249,23 @@ func checkRestrictedUser(ctx *th.Context, bot *telego.Bot, chatId int64, newChat
 		if !shouldRestrict {
 			reason = "reason_join_group"
 		}
-		restrictUser(ctx, bot, chatId, user, reason)
+		restrictUser(bot, chatId, user, reason)
 	}
 	return nil
 }
 
-func restrictUser(ctx *th.Context, bot *telego.Bot, chatId int64, user telego.User, reason string) {
+func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string) {
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
-	RestrictUser(ctx.Context(), bot, chatId, user.ID)
+	RestrictUser(bot, chatId, user.ID)
 	// Send warning only if notifications are enabled
-	groupInfo := service.GetGroupInfo(ctx, bot, chatId, false)
+	groupInfo := service.GetGroupInfo(bot, chatId, false)
 	if groupInfo.EnableNotification {
-		SendWarning(ctx.Context(), bot, groupInfo.GroupID, user, reason)
+		SendWarning(bot, groupInfo.GroupID, user, reason)
 	}
 }
 
 // handleMyChatMemberUpdate processes updates to the bot's own chat member status
-func handleMyChatMemberUpdate(ctx *th.Context, bot *telego.Bot, update telego.Update) error {
+func handleMyChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 	// Process MyChatMember updates (when users block/unblock the bot in private chats)
 	if update.MyChatMember == nil {
 		return nil
