@@ -44,6 +44,8 @@ func RegisterCommands(bot *telego.Bot, message telego.Message) (bool, error) {
 		return true, handleLanguageCommand(bot, message)
 	case "/self_unban":
 		return true, handleSelfUnbanCommand(bot, message)
+	case "/ping":
+		return true, handlePingCommand(bot, message)
 	}
 
 	if message.Chat.Type == "private" && message.ReplyToMessage != nil {
@@ -56,6 +58,14 @@ func RegisterCommands(bot *telego.Bot, message telego.Message) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func handlePingCommand(bot *telego.Bot, message telego.Message) error {
+	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID: telego.ChatID{ID: message.Chat.ID},
+		Text:   "pong",
+	})
+	return err
 }
 
 func checkAdmin(bot *telego.Bot, message telego.Message) error {
