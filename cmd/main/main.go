@@ -95,16 +95,16 @@ func main() {
 
 func handlePendingDeletions(botService *bot.BotService, cfg *config.Config) {
 	// After bot starts, load and process pending deletions if DB is enabled
-	if cfg.Database.Enabled && service.GetPendingMsgRepository() != nil {
+	if cfg.Database.Enabled {
 		logger.Info("Loading pending message deletions from database...")
-		pendingMsgs, err := service.GetPendingMsgRepository().GetAllPendingMsgs()
+		pendingMsgs, err := service.GetAllPendingMsgs()
 		if err != nil {
 			logger.Errorf("Error loading pending deletions: %v", err)
 		} else {
 			logger.Infof("Found %d pending message deletions to process.", len(pendingMsgs))
 			for _, msg := range pendingMsgs {
 				go func(msg models.PendingMessage) {
-					durationUntilDelete := time.Until(msg.DeleteAt)
+					durationUntilDelete := time.Until(msg.CreatedAt.Add(3 * time.Minute))
 					if durationUntilDelete < 0 {
 						durationUntilDelete = 0 // Delete immediately if past due
 					}
@@ -118,7 +118,7 @@ func handlePendingDeletions(botService *bot.BotService, cfg *config.Config) {
 					})
 
 					// Remove from DB after attempting deletion
-					if err = service.GetPendingMsgRepository().RemovePendingMsg(msg.ChatID, msg.MessageID); err != nil {
+					if err = service.RemovePendingMsg(msg.ChatID, msg.MessageID); err != nil {
 						logger.Warningf("Error removing pending deletion from DB for chat %d, message %d: %v", msg.ChatID, msg.MessageID, err)
 					}
 				}(msg)

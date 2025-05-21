@@ -8,7 +8,7 @@ type PendingMessage struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	ChatID    int64     `gorm:"index:idx_chat_message,unique"`
-	MessageID int       `gorm:"index:idx_chat_message,unique"`
-	DeleteAt  time.Time `gorm:"index"` // Optional: if you want to store when it was originally scheduled
+	UserID    int64 `gorm:"index:idx_user_chat,unique"`
+	ChatID    int64 `gorm:"index:idx_user_chat,unique;index:idx_chat_message,unique"`
+	MessageID int   `gorm:"index:idx_chat_message,unique"`
 }

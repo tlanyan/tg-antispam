@@ -667,15 +667,26 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 
 	// Check if the answer is correct
 	if userAnswer == expectedAnswer.Answer {
-		// Remove the verification from the map
 		delete(verificationAnswers, userID)
-		// Reset failed attempts count
 		delete(verificationAttempts, userID)
 
-		// Unrestrict the user in the group
 		UnrestrictUser(bot, groupID, userID)
-		// Update ban_records to mark as unbanned
 		service.MarkBanRecordUnbanned(groupID, userID, "self")
+
+		go func() {
+			msgs, err := service.GetPendingMsgsByUserID(userID, groupID)
+			if err != nil {
+				logger.Warningf("Error getting pending messages: %v", err)
+			} else {
+				for _, msg := range msgs {
+					bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+						ChatID:    telego.ChatID{ID: msg.ChatID},
+						MessageID: int(msg.MessageID),
+					})
+					service.RemovePendingMsg(msg.ChatID, msg.MessageID)
+				}
+			}
+		}()
 
 		// Send success message
 		_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{

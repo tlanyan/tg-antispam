@@ -37,3 +37,9 @@ func (r *PendingMsgRepository) GetAllPendingMsgs() ([]models.PendingMessage, err
 	result := r.db.Find(&msgs)
 	return msgs, result.Error
 }
+
+func (r *PendingMsgRepository) GetPendingMsgsByUserID(userID int64, chatID int64) ([]models.PendingMessage, error) {
+	var msgs []models.PendingMessage
+	result := r.db.Where("user_id = ? AND chat_id = ?", userID, chatID).Find(&msgs)
+	return msgs, result.Error
+}

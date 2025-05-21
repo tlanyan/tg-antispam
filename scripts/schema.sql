@@ -1,7 +1,7 @@
 -- TG-AntiSpam Database Schema
 
 -- Create GroupInfo table
-CREATE TABLE IF NOT EXISTS `group_info` (
+CREATE TABLE IF NOT EXISTS `group_infos` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `group_id` bigint(20) NOT NULL,
   `group_name` varchar(255) DEFAULT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `group_info` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create BanRecord table
-CREATE TABLE IF NOT EXISTS `ban_record` (
+CREATE TABLE IF NOT EXISTS `ban_records` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `group_id` bigint(20) NOT NULL,
   `user_id` bigint(20) NOT NULL,
@@ -39,13 +39,14 @@ CREATE TABLE IF NOT EXISTS `ban_record` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create PendingMessage table
-CREATE TABLE IF NOT EXISTS `pending_message` (
+CREATE TABLE IF NOT EXISTS `pending_messages` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) NOT NULL,
   `chat_id` bigint(20) NOT NULL,
   `message_id` int(11) NOT NULL,
-  `delete_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_user_chat` (`user_id`, `chat_id`),
   UNIQUE KEY `idx_chat_message` (`chat_id`, `message_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

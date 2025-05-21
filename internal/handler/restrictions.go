@@ -82,7 +82,7 @@ func DeleteAllPendingInMemoryMessages(bot *telego.Bot) {
 		})
 	}
 	if len(deletionsToProcess) > 0 {
-		logger.Infof("Finished attempting to delete in-memory pending messages during shutdown.")
+		logger.Infof("Finished attempting to delete in-memory pending messages during shutdown: %d", len(deletionsToProcess))
 	}
 }
 
@@ -326,31 +326,27 @@ func NotifyUserInGroup(bot *telego.Bot, groupID int64, user telego.User, reason 
 		return
 	}
 
-	// Delete the group message after 3 minutes
-	deletionDelay := 3 * time.Minute
-	deleteAt := time.Now().Add(deletionDelay)
-
-	if globalConfig != nil && globalConfig.Database.Enabled && service.GetPendingMsgRepository() != nil {
+	if globalConfig != nil && globalConfig.Database.Enabled {
 		pendingMsg := &models.PendingMessage{
+			UserID:    user.ID,
 			ChatID:    groupInfo.GroupID,
 			MessageID: msg.MessageID,
-			DeleteAt:  deleteAt,
 		}
-		service.GetPendingMsgRepository().AddPendingMsg(pendingMsg)
+		service.AddPendingMsg(pendingMsg)
 	} else {
 		// Add to in-memory list if DB is not enabled
 		addInMemoryPendingDeletion(groupInfo.GroupID, msg.MessageID)
 	}
 
 	go func() {
-		time.Sleep(deletionDelay)
+		time.Sleep(3 * time.Minute)
 		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
 			ChatID:    telego.ChatID{ID: groupInfo.GroupID},
 			MessageID: msg.MessageID,
 		})
 
-		if globalConfig != nil && globalConfig.Database.Enabled && service.GetPendingMsgRepository() != nil {
-			service.GetPendingMsgRepository().RemovePendingMsg(groupInfo.GroupID, msg.MessageID)
+		if globalConfig != nil && globalConfig.Database.Enabled {
+			service.RemovePendingMsg(groupInfo.GroupID, msg.MessageID)
 		} else {
 			// Remove from in-memory list
 			removeInMemoryPendingDeletion(groupInfo.GroupID, msg.MessageID)
