@@ -136,13 +136,7 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			MessageID: message.MessageID,
 		})
-		RestrictUser(bot, message.Chat.ID, message.From.ID)
-		// Record the ban event in database
-		service.CreateBanRecord(message.Chat.ID, message.From.ID, reason)
-		// Send warning only if notifications are enabled
-		if groupInfo.EnableNotification {
-			SendWarning(bot, groupInfo.GroupID, *message.From, reason)
-		}
+		restrictUser(bot, message.Chat.ID, *message.From, reason)
 	}
 
 	return nil
@@ -257,11 +251,13 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string) {
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
 	RestrictUser(bot, chatId, user.ID)
+	service.CreateBanRecord(chatId, user.ID, reason)
 	// Send warning only if notifications are enabled
 	groupInfo := service.GetGroupInfo(bot, chatId, false)
 	if groupInfo.EnableNotification {
-		SendWarning(bot, groupInfo.GroupID, user, reason)
+		NotifyAdmin(bot, groupInfo.GroupID, user, reason)
 	}
+	NotifyUserInGroup(bot, groupInfo.GroupID, user)
 }
 
 // handleMyChatMemberUpdate processes updates to the bot's own chat member status

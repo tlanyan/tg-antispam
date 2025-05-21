@@ -215,14 +215,6 @@ func GetLinkedUserName(user telego.User) string {
 	return fmt.Sprintf("<a href=\"tg://user?id=%d\">%s</a>", user.ID, displayName)
 }
 
-// SendWarning sends a warning message about the restricted user
-func SendWarning(bot *telego.Bot, groupID int64, user telego.User, reason string) {
-
-	NotifyAdmin(bot, groupID, user, reason)
-
-	NotifyUserInGroup(bot, groupID, user, reason)
-}
-
 func NotifyAdmin(bot *telego.Bot, groupID int64, user telego.User, reason string) {
 	groupInfo := service.GetGroupInfo(bot, groupID, false)
 	if groupInfo == nil {
@@ -273,7 +265,7 @@ func NotifyAdmin(bot *telego.Bot, groupID int64, user telego.User, reason string
 	}
 }
 
-func NotifyUserInGroup(bot *telego.Bot, groupID int64, user telego.User, reason string) {
+func NotifyUserInGroup(bot *telego.Bot, groupID int64, user telego.User) {
 	// Get bot username to create the deep link
 	botInfo, err := bot.GetMe(context.Background())
 	if err != nil {
