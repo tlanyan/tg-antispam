@@ -64,9 +64,8 @@ func main() {
 	log.Println("HTTP server is ready, starting bot handler...")
 
 	handler.SetupMessageHandlers(botService.Handler, botService.Bot)
-	botService.Start()
-
 	handlePendingDeletions(botService, cfg)
+	botService.Start()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGQUIT)
