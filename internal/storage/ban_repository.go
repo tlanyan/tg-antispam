@@ -38,7 +38,7 @@ func (r *BanRepository) GetActiveByUser(userID int64) ([]*models.BanRecord, erro
 // MarkUnbanned updates a record to mark it as unbanned and sets updated_at
 func (r *BanRepository) MarkUnbanned(groupID, userID int64, unbannedBy string) error {
 	result := r.db.Model(&models.BanRecord{}).
-		Where("group_id = ? AND user_id = ? AND is_unbanned = ? AND unbanned_by = ?", groupID, userID, false, unbannedBy).
-		Updates(map[string]interface{}{"is_unbanned": true, "updated_at": time.Now()})
+		Where("group_id = ? AND user_id = ? AND is_unbanned = ?", groupID, userID, false).
+		Updates(map[string]interface{}{"is_unbanned": true, "updated_at": time.Now(), "unbanned_by": unbannedBy})
 	return result.Error
 }
