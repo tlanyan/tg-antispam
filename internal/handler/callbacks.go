@@ -77,7 +77,7 @@ func handleUnbanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	service.MarkBanRecordUnbanned(groupID, userID, "admin")
 
 	// Get group info for language
-	language := GetBotChatLang(bot, userID, groupID)
+	language := GetBotQueryLang(bot, &query)
 
 	// Notify the admin that the action was successful
 	err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
@@ -141,7 +141,7 @@ func handleBanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	}
 
 	// Get group info for language
-	language := GetBotChatLang(bot, userID, groupID)
+	language := GetBotQueryLang(bot, &query)
 
 	// Restrict the user (ban from sending messages and media)
 	err = bot.RestrictChatMember(context.Background(), &telego.RestrictChatMemberParams{
@@ -331,13 +331,10 @@ func handleGroupSelectionCallback(bot *telego.Bot, query telego.CallbackQuery) e
 	// 根据操作类型处理
 	if query.Message != nil {
 		if message, ok := query.Message.(*telego.Message); ok {
-			// 获取用户语言设置
-			language := GetBotChatLang(bot, message.Chat.ID, groupID)
-
 			switch action {
 			case "settings":
 				// 显示群组设置
-				return showGroupSettings(bot, *message, groupID, language)
+				return showGroupSettings(bot, *message, groupID)
 			default:
 				// 对于其他操作类型，创建action回调
 				callbackData := fmt.Sprintf("action:%s:%d", action, groupID)
@@ -405,7 +402,7 @@ func handleActionSelectionCallback(bot *telego.Bot, query telego.CallbackQuery) 
 	}
 
 	// 处理不同的操作
-	language := GetBotChatLang(bot, query.From.ID, groupID)
+	language := GetBotQueryLang(bot, &query)
 
 	var updateMessage string
 
@@ -486,7 +483,7 @@ func handleActionSelectionCallback(bot *telego.Bot, query telego.CallbackQuery) 
 	// 更新设置消息
 	if query.Message != nil {
 		if message, ok := query.Message.(*telego.Message); ok {
-			return showGroupSettings(bot, *message, groupID, language)
+			return showGroupSettings(bot, *message, groupID)
 		}
 	}
 
@@ -584,7 +581,7 @@ func SendMathVerificationMessage(bot *telego.Bot, userID int64, groupID int64, q
 	verificationAttempts[userID] = 0
 
 	// Get group info for language
-	language := GetBotChatLang(bot, userID, groupID)
+	language := GetBotQueryLang(bot, query)
 
 	logger.Infof("Send math verification message to user: %d, groupID: %d", userID, groupID)
 	// Send the math problem to the user
@@ -663,7 +660,7 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 	}
 
 	// Get group info for language
-	language := GetBotChatLang(bot, message.Chat.ID, groupID)
+	language := GetBotLang(bot, message)
 
 	// Check if the answer is correct
 	if userAnswer == expectedAnswer.Answer {

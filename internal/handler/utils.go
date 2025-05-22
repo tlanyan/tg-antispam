@@ -136,10 +136,17 @@ func ClassifyWithGemini(apiKey string, model string, message string) (bool, erro
 	return false, nil
 }
 
-func GetBotChatLang(bot *telego.Bot, chatID int64, groupID int64) string {
-	groupInfo := service.GetGroupInfo(bot, chatID, false)
-	if groupInfo == nil {
-		groupInfo = service.GetGroupInfo(bot, groupID, true)
+func GetBotLang(bot *telego.Bot, message telego.Message) string {
+	if message.Chat.Type == "private" {
+		return service.GetGroupInfo(bot, message.From.ID, true).Language
 	}
-	return groupInfo.Language
+	return service.GetGroupInfo(bot, message.Chat.ID, false).Language
+}
+
+func GetBotQueryLang(bot *telego.Bot, query *telego.CallbackQuery) string {
+	if msg, ok := query.Message.(*telego.Message); ok {
+		return GetBotLang(bot, *msg)
+	}
+
+	return "zh_CN"
 }

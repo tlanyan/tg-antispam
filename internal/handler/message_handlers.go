@@ -69,7 +69,7 @@ func handlePrivateMessage(bot *telego.Bot, message telego.Message) error {
 
 			// Verify that the user requesting unban is the same user who was banned
 			if message.From.ID != userID {
-				language := GetBotChatLang(bot, message.From.ID, message.Chat.ID)
+				language := GetBotLang(bot, message)
 				_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 					ChatID:    telego.ChatID{ID: message.Chat.ID},
 					Text:      models.GetTranslation(language, "cannot_unban_for_other_users"),

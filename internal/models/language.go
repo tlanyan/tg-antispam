@@ -48,6 +48,7 @@ var Translations = map[string]Translation{
 		"no_ban_records":               "您没有待解封的记录",
 		"cannot_unban_for_other_users": "不能为其他用户解除限制",
 		"select_group_to_unban":        "请选择要解除限制的群组：",
+		"use_private_chat":             "请在私聊中使用此命令",
 
 		"settings_title":           "%s 的设置",
 		"settings_bot_status":      "机器人状态:",
@@ -165,6 +166,7 @@ var Translations = map[string]Translation{
 		"no_ban_records":               "您沒有待解封的記錄",
 		"cannot_unban_for_other_users": "不能為其他用戶解除限制",
 		"select_group_to_unban":        "請選擇要解除限制的群組：",
+		"use_private_chat":             "請在私聊中使用此命令",
 
 		"settings_title":           "%s 的設置",
 		"settings_bot_status":      "機器人狀態:",
@@ -286,9 +288,10 @@ var Translations = map[string]Translation{
 		"user_not_admin":               "You are not an admin in this group, and cannot use this command",
 		"empty_group_list":             "Group list is empty, please add the bot to your groups and set it as an administrator",
 		"get_ban_records_error":        "Failed to get ban records, please try again later",
-		"no_ban_records":               "You have no ban records to unban",
+		"no_ban_records":               "You have no ban records",
 		"cannot_unban_for_other_users": "You cannot unban for other users",
 		"select_group_to_unban":        "Please select the group to unban from:",
+		"use_private_chat":             "Please use this command in the private chat with the bot",
 
 		"settings_title":           "Settings for %s",
 		"settings_bot_status":      "Bot Status:",
