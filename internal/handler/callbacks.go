@@ -50,6 +50,21 @@ func HandleCallbackQuery(bot *telego.Bot, query telego.CallbackQuery) error {
 	return nil
 }
 
+func checkAdminQuery(bot *telego.Bot, query telego.CallbackQuery, groupID int64) (bool, error) {
+	language := GetBotQueryLang(bot, &query)
+	// Check if the callback sender is an admin in the chat
+	if !isUserAdmin(bot, groupID, query.From.ID) {
+		// Inform user they don't have permission
+		err := bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: query.ID,
+			Text:            models.GetTranslation(language, "user_not_admin"),
+			ShowAlert:       true,
+		})
+		return false, err
+	}
+	return true, nil
+}
+
 // handleUnbanCallback processes a request to unban a user
 func handleUnbanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	groupID, userID, err := getGroupAndUserID(query.Data)
@@ -61,14 +76,8 @@ func handleUnbanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	logger.Infof("Unban callback received: %+v, groupID=%d, userID=%d", query, groupID, userID)
 	// Get group info for language
 	language := GetBotQueryLang(bot, &query)
-	// Check if the callback sender is an admin in the chat
-	if !isUserAdmin(bot, groupID, query.From.ID) {
-		// Inform user they don't have permission
-		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
-			CallbackQueryID: query.ID,
-			Text:            models.GetTranslation(language, "user_not_admin"),
-			ShowAlert:       true,
-		})
+	isAdmin, err := checkAdminQuery(bot, query, groupID)
+	if !isAdmin {
 		return err
 	}
 
@@ -127,14 +136,8 @@ func handleBanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 
 	logger.Infof("Ban callback received: %+v, groupID=%d, userID=%d", query, groupID, userID)
 	// Check if the callback sender is an admin in the chat
-	isAdmin, err := isUserAdmin(bot, groupID, query.From.ID)
-	if err != nil || !isAdmin {
-		// Inform user they don't have permission
-		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
-			CallbackQueryID: query.ID,
-			Text:            "You don't have permission to ban users.",
-			ShowAlert:       true,
-		})
+	isAdmin, err := checkAdminQuery(bot, query, groupID)
+	if !isAdmin {
 		return err
 	}
 
@@ -223,14 +226,8 @@ func setLanguage(bot *telego.Bot, query telego.CallbackQuery, groupID int64, lan
 	}
 	// Check if the user is an admin
 	if groupInfo.AdminID != query.From.ID {
-		isAdmin, err := isUserAdmin(bot, groupID, query.From.ID)
-		if err != nil || !isAdmin {
-			// Inform user they don't have permission
-			err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
-				CallbackQueryID: query.ID,
-				Text:            "You don't have permission to change settings.",
-				ShowAlert:       true,
-			})
+		isAdmin, err := checkAdminQuery(bot, query, groupID)
+		if !isAdmin {
 			return err
 		}
 	}
@@ -387,14 +384,8 @@ func handleActionSelectionCallback(bot *telego.Bot, query telego.CallbackQuery) 
 
 	// 检查用户是否是管理员
 	if groupInfo.AdminID != query.From.ID {
-		isAdmin, err := isUserAdmin(bot, groupID, query.From.ID)
-		if err != nil || !isAdmin {
-			// 通知用户没有权限
-			err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
-				CallbackQueryID: query.ID,
-				Text:            "您没有权限更改设置",
-				ShowAlert:       true,
-			})
+		isAdmin, err := checkAdminQuery(bot, query, groupID)
+		if !isAdmin {
 			return err
 		}
 	}

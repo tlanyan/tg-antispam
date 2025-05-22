@@ -64,7 +64,7 @@ func handlePingCommand(bot *telego.Bot, message telego.Message) error {
 	return err
 }
 
-func checkAdmin(bot *telego.Bot, message telego.Message) error {
+func checkAdminMessage(bot *telego.Bot, message telego.Message) error {
 	// Check if sender is admin
 	if !isUserAdmin(bot, message.Chat.ID, message.From.ID) {
 		language := GetBotLang(bot, message)
@@ -90,7 +90,7 @@ func handleLanguageCommand(bot *telego.Bot, message telego.Message) error {
 			service.UpdateGroupInfo(groupInfo)
 		}
 	} else {
-		err := checkAdmin(bot, message)
+		err := checkAdminMessage(bot, message)
 		if err != nil {
 			return err
 		}
@@ -142,7 +142,7 @@ func handleSettingsCommand(bot *telego.Bot, message telego.Message) error {
 	if message.Chat.Type == "private" {
 		return showGroupSelection(bot, message, "settings")
 	} else {
-		err := checkAdmin(bot, message)
+		err := checkAdminMessage(bot, message)
 		if err != nil {
 			return err
 		}
@@ -156,7 +156,7 @@ func handleToggleCommand(bot *telego.Bot, message telego.Message, action string)
 	if message.Chat.Type == "private" {
 		return showGroupSelection(bot, message, action)
 	} else {
-		err := checkAdmin(bot, message)
+		err := checkAdminMessage(bot, message)
 		if err != nil {
 			return err
 		}
