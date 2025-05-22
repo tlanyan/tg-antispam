@@ -3,8 +3,8 @@ package handler
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mymmrac/telego"
 
@@ -53,15 +53,6 @@ func RegisterCommands(bot *telego.Bot, message telego.Message) (bool, error) {
 		return true, handlePingCommand(bot, message)
 	}
 
-	if message.Chat.Type == "private" && message.ReplyToMessage != nil {
-		// Check if the message is a reply to our "enter group ID" message
-		if message.ReplyToMessage.From.ID == bot.ID() &&
-			(strings.Contains(message.ReplyToMessage.Text, "请输入群组ID") ||
-				strings.Contains(message.ReplyToMessage.Text, "請輸入群組ID") ||
-				strings.Contains(message.ReplyToMessage.Text, "Please enter the Group ID")) {
-			return true, handleGroupIDInput(bot, message)
-		}
-	}
 	return false, nil
 }
 
@@ -180,93 +171,6 @@ func handleToggleCommand(bot *telego.Bot, message telego.Message, action string)
 		}
 		return HandleCallbackQuery(bot, query)
 	}
-}
-
-// handleGroupIDInput processes user input when adding a group by ID
-func handleGroupIDInput(bot *telego.Bot, message telego.Message) error {
-	logger.Debugf("handleGroupIDInput called for message: %+v", message)
-	// Get the ID from the message
-	groupID, err := strconv.ParseInt(strings.TrimSpace(message.Text), 10, 64)
-	if err != nil {
-		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "无效的群组ID，请输入数字ID",
-			ParseMode: "HTML",
-		})
-		return err
-	}
-
-	logger.Infof("handleGroupIDInput called for groupID=%d", groupID)
-	chatInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
-		ChatID: telego.ChatID{ID: groupID},
-	})
-	if err != nil {
-		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "无法获取群组信息，请确保机器人已经加入该群组，并且您输入了正确的群组ID",
-			ParseMode: "HTML",
-		})
-		return err
-	}
-
-	// Check if the chat is a group or supergroup
-	if chatInfo.Type != "group" && chatInfo.Type != "supergroup" {
-		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "ID不是群组，请输入正确的群组ID",
-			ParseMode: "HTML",
-		})
-		return err
-	}
-
-	// Check if the bot is an admin in the group
-	botAdmins, err := bot.GetChatAdministrators(context.Background(), &telego.GetChatAdministratorsParams{
-		ChatID: telego.ChatID{ID: groupID},
-	})
-	if err != nil {
-		logger.Warningf("Error getting chat administrators: %v", err)
-	}
-
-	botID := bot.ID()
-	botIsAdmin := false
-	for _, admin := range botAdmins {
-		if admin.MemberUser().ID == botID {
-			botIsAdmin = true
-			break
-		}
-	}
-
-	if !botIsAdmin {
-		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "机器人不是群组管理员，请先将机器人设为管理员",
-			ParseMode: "HTML",
-		})
-		return err
-	}
-
-	isAdmin, err := isUserAdmin(bot, groupID, message.From.ID)
-	if err != nil || !isAdmin {
-		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "您不是该群组的管理员，无法管理该群组",
-			ParseMode: "HTML",
-		})
-		return err
-	}
-
-	groupInfo := service.GetGroupInfo(bot, groupID, true)
-	groupInfo.AdminID = message.From.ID
-	service.UpdateGroupInfo(groupInfo)
-
-	_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID: telego.ChatID{ID: message.Chat.ID},
-		Text: fmt.Sprintf("✅ 成功添加群组: <b>%s</b>\n\n请使用 /settings 命令管理该群组",
-			chatInfo.Title),
-		ParseMode: "HTML",
-	})
-
-	return err
 }
 
 // showGroupSelection displays a list of groups for the user to select from
@@ -476,18 +380,48 @@ func showGroupSettings(bot *telego.Bot, message telego.Message, groupID int64, l
 	return err
 }
 
+func PrivateChatWarning(bot *telego.Bot, message telego.Message) error {
+	language := GetBotChatLang(bot, message.From.ID, message.Chat.ID)
+	msg, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:    telego.ChatID{ID: message.Chat.ID},
+		Text:      models.GetTranslation(language, "use_private_chat"),
+		ParseMode: "HTML",
+	})
+	if err != nil {
+		logger.Warningf("Error sending use private chat message: %v", err)
+	} else {
+		go func() {
+			time.Sleep(time.Minute * 3)
+			bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+				ChatID:    telego.ChatID{ID: message.Chat.ID},
+				MessageID: msg.MessageID,
+			})
+		}()
+	}
+	return err
+}
+
 // handleSelfUnbanCommand guides a user through self-unban based on their ban records
 func handleSelfUnbanCommand(bot *telego.Bot, message telego.Message) error {
+	if message.Chat.Type != "private" {
+		return PrivateChatWarning(bot, message)
+	}
+
+	language := GetBotChatLang(bot, message.From.ID, message.Chat.ID)
 	userID := message.From.ID
 	records, err := service.GetActiveBanRecordsByUser(userID)
 	if err != nil {
-		logger.Warningf("Error fetching ban records for user %d: %v", userID, err)
-		return nil
+		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			ChatID:    telego.ChatID{ID: message.Chat.ID},
+			Text:      models.GetTranslation(language, "get_ban_records_error"),
+			ParseMode: "HTML",
+		})
+		return err
 	}
 	if len(records) == 0 {
 		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "您没有待解封的记录。\nYou have no ban records to unban.",
+			Text:      models.GetTranslation(language, "no_ban_records"),
 			ParseMode: "HTML",
 		})
 		return err
@@ -516,7 +450,7 @@ func handleSelfUnbanCommand(bot *telego.Bot, message telego.Message) error {
 	markup := &telego.InlineKeyboardMarkup{InlineKeyboard: buttons}
 	_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 		ChatID:      telego.ChatID{ID: message.Chat.ID},
-		Text:        "请选择要解除限制的群组：\nPlease select the group to unban from:",
+		Text:        models.GetTranslation(language, "select_group_to_unban"),
 		ParseMode:   "HTML",
 		ReplyMarkup: markup,
 	})

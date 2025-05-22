@@ -12,6 +12,7 @@ import (
 
 	"tg-antispam/internal/config"
 	"tg-antispam/internal/logger"
+	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
 	"tg-antispam/internal/storage"
 )
@@ -68,9 +69,10 @@ func handlePrivateMessage(bot *telego.Bot, message telego.Message) error {
 
 			// Verify that the user requesting unban is the same user who was banned
 			if message.From.ID != userID {
+				language := GetBotChatLang(bot, message.From.ID, message.Chat.ID)
 				_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 					ChatID:    telego.ChatID{ID: message.Chat.ID},
-					Text:      "不能为其他用户解除限制。\nYou cannot unban for other users.",
+					Text:      models.GetTranslation(language, "cannot_unban_for_other_users"),
 					ParseMode: "HTML",
 				})
 				return err

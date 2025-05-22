@@ -42,8 +42,12 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_bio_link":        "切换默认封禁个人简介可疑链接用户",
 		"cmd_desc_self_unban":             "自助解封",
 
-		"user_not_admin":   "您不是群组管理员，无法使用该指令",
-		"empty_group_list": "群组记录为空，请将机器人添加到您管理的群组中并设置为管理员",
+		"user_not_admin":               "您不是群组管理员，无法使用该指令",
+		"empty_group_list":             "群组记录为空，请将机器人添加到您管理的群组中并设置为管理员",
+		"get_ban_records_error":        "获取封禁记录失败，请稍后再试",
+		"no_ban_records":               "您没有待解封的记录",
+		"cannot_unban_for_other_users": "不能为其他用户解除限制",
+		"select_group_to_unban":        "请选择要解除限制的群组：",
 
 		"settings_title":           "%s 的设置",
 		"settings_bot_status":      "机器人状态:",
@@ -155,8 +159,12 @@ var Translations = map[string]Translation{
 		"cmd_desc_language":               "設置機器人語言",
 		"cmd_desc_self_unban":             "自助解封",
 
-		"user_not_admin":   "您不是群組管理員，無法使用該指令",
-		"empty_group_list": "群組記錄為空，請將機器人添加到您管理的群組中並設置為管理員",
+		"user_not_admin":               "您不是群組管理員，無法使用該指令",
+		"empty_group_list":             "群組記錄為空，請將機器人添加到您管理的群組中並設置為管理員",
+		"get_ban_records_error":        "獲取封禁記錄失敗，請稍後再試",
+		"no_ban_records":               "您沒有待解封的記錄",
+		"cannot_unban_for_other_users": "不能為其他用戶解除限制",
+		"select_group_to_unban":        "請選擇要解除限制的群組：",
 
 		"settings_title":           "%s 的設置",
 		"settings_bot_status":      "機器人狀態:",
@@ -275,8 +283,12 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_bio_link":        "Toggle bio link banning",
 		"cmd_desc_self_unban":             "Self-unban",
 
-		"user_not_admin":   "You are not an admin in this group, and cannot use this command",
-		"empty_group_list": "Group list is empty, please add the bot to your groups and set it as an administrator",
+		"user_not_admin":               "You are not an admin in this group, and cannot use this command",
+		"empty_group_list":             "Group list is empty, please add the bot to your groups and set it as an administrator",
+		"get_ban_records_error":        "Failed to get ban records, please try again later",
+		"no_ban_records":               "You have no ban records to unban",
+		"cannot_unban_for_other_users": "You cannot unban for other users",
+		"select_group_to_unban":        "Please select the group to unban from:",
 
 		"settings_title":           "Settings for %s",
 		"settings_bot_status":      "Bot Status:",
