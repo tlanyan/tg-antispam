@@ -59,13 +59,14 @@ func handleUnbanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	}
 
 	logger.Infof("Unban callback received: %+v, groupID=%d, userID=%d", query, groupID, userID)
+	// Get group info for language
+	language := GetBotQueryLang(bot, &query)
 	// Check if the callback sender is an admin in the chat
-	isAdmin, err := isUserAdmin(bot, groupID, query.From.ID)
-	if err != nil || !isAdmin {
+	if !isUserAdmin(bot, groupID, query.From.ID) {
 		// Inform user they don't have permission
 		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
-			Text:            "You don't have permission to unban users.",
+			Text:            models.GetTranslation(language, "user_not_admin"),
 			ShowAlert:       true,
 		})
 		return err
@@ -75,9 +76,6 @@ func handleUnbanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	UnrestrictUser(bot, groupID, userID)
 	// Update ban_records to mark as unbanned
 	service.MarkBanRecordUnbanned(groupID, userID, "admin")
-
-	// Get group info for language
-	language := GetBotQueryLang(bot, &query)
 
 	// Notify the admin that the action was successful
 	err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{

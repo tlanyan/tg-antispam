@@ -15,21 +15,21 @@ import (
 )
 
 // isUserAdmin checks if a user is an admin in a chat
-func isUserAdmin(bot *telego.Bot, chatID int64, userID int64) (bool, error) {
+func isUserAdmin(bot *telego.Bot, chatID int64, userID int64) bool {
 	admins, err := bot.GetChatAdministrators(context.Background(), &telego.GetChatAdministratorsParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
-		return false, err
+		return false
 	}
 
 	for _, admin := range admins {
 		if admin.MemberUser().ID == userID {
-			return true, nil
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 // getBotUsername retrieves the bot's username

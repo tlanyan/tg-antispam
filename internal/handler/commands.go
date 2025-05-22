@@ -66,8 +66,7 @@ func handlePingCommand(bot *telego.Bot, message telego.Message) error {
 
 func checkAdmin(bot *telego.Bot, message telego.Message) error {
 	// Check if sender is admin
-	senderIsAdmin, err := isUserAdmin(bot, message.Chat.ID, message.From.ID)
-	if err != nil || !senderIsAdmin {
+	if !isUserAdmin(bot, message.Chat.ID, message.From.ID) {
 		language := GetBotLang(bot, message)
 		botUsername, _ := getBotUsername(bot)
 		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
