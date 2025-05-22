@@ -21,7 +21,12 @@ func RegisterCommands(bot *telego.Bot, message telego.Message) (bool, error) {
 		return false, nil
 	}
 
-	switch message.Text {
+	command := message.Text
+	if strings.Contains(command, "@"+bot.Username()) {
+		command = strings.TrimSuffix(command, "@"+bot.Username())
+	}
+
+	switch command {
 	case "/help", "/start", "/start help":
 		return true, sendHelpMessage(bot, message)
 	case "/settings":

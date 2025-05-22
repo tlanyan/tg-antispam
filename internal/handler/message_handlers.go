@@ -98,7 +98,13 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 		return nil
 	}
 	logger.Infof("Processing message: %+v, from: %+v", message, *message.From)
-	// Use database configuration if available
+
+	// handle bot commands
+	if strings.HasPrefix(message.Text, "/") && strings.Contains(message.Text, "@"+bot.Username()) {
+		RegisterCommands(bot, message)
+		return nil
+	}
+
 	shouldRestrict := false
 	reason := ""
 
