@@ -166,8 +166,8 @@ func handleChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 	}
 
 	fromUser := update.ChatMember.From
-	// Skip updates from bots
-	if fromUser.IsBot || isUserAdmin(bot, chatId, fromUser.ID) {
+	// Skip updates from self or admins
+	if fromUser.ID == botID || (!fromUser.IsBot && isUserAdmin(bot, chatId, fromUser.ID)) {
 		return nil
 	}
 
