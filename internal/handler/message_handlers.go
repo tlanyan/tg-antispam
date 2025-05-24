@@ -200,11 +200,12 @@ func handleChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 }
 
 func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.ChatMember, fromUser telego.User) error {
+	user := newChatMember.MemberUser()
 	if newChatMember.MemberStatus() == telego.MemberStatusLeft || newChatMember.MemberStatus() == telego.MemberStatusBanned {
+		delete(pendingUsers, user.ID)
 		return nil
 	}
 
-	user := newChatMember.MemberUser()
 	if newChatMember.MemberIsMember() {
 		// Skip bots
 		if user.IsBot {
