@@ -29,9 +29,14 @@ func (r *BanRepository) Create(record *models.BanRecord) error {
 }
 
 // GetActiveByUser returns all non-unbanned records for a user
-func (r *BanRepository) GetActiveByUser(userID int64) ([]*models.BanRecord, error) {
+func (r *BanRepository) GetActiveByUser(userID int64, groupID int64) ([]*models.BanRecord, error) {
 	var records []*models.BanRecord
-	result := r.db.Where("user_id = ? AND is_unbanned = ?", userID, false).Find(&records)
+	var result *gorm.DB
+	if groupID != -1 {
+		result = r.db.Where("user_id = ? AND group_id = ? AND is_unbanned = ?", userID, groupID, false).Find(&records)
+	} else {
+		result = r.db.Where("user_id = ? AND is_unbanned = ?", userID, false).Find(&records)
+	}
 	return records, result.Error
 }
 

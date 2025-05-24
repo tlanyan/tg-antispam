@@ -408,7 +408,7 @@ func handleSelfUnbanCommand(bot *telego.Bot, message telego.Message) error {
 
 	language := GetBotLang(bot, message)
 	userID := message.From.ID
-	records, err := service.GetActiveBanRecordsByUser(userID)
+	records, err := service.GetUserActiveBanRecords(userID, -1)
 	if err != nil {
 		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},

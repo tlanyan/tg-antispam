@@ -241,6 +241,16 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 			}
 		}
 
+		// 不重复封禁
+		banRecords, err := service.GetUserActiveBanRecords(user.ID, chatId)
+		if err != nil {
+			logger.Warningf("Error getting active ban records for user %d: %v", user.ID, err)
+			return err
+		}
+		if len(banRecords) > 0 {
+			return nil
+		}
+
 		// Check if user should be restricted
 		groupInfo := service.GetGroupInfo(bot, chatId, false)
 		shouldRestrict, reason := ShouldRestrictUser(bot, groupInfo, user)

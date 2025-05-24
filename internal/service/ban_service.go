@@ -15,10 +15,10 @@ func CreateBanRecord(groupID, userID int64, reason string) {
 	}
 }
 
-// GetActiveBanRecordsByUser retrieves all active (not unbanned) ban records for a user
-func GetActiveBanRecordsByUser(userID int64) ([]*models.BanRecord, error) {
+// GetUserActiveBanRecords retrieves all active (not unbanned) ban records for a user
+func GetUserActiveBanRecords(userID int64, groupID int64) ([]*models.BanRecord, error) {
 	if banRepository != nil {
-		return banRepository.GetActiveByUser(userID)
+		return banRepository.GetActiveByUser(userID, groupID)
 	}
 	return nil, nil
 }
