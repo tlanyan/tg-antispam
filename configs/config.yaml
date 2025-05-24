@@ -9,6 +9,9 @@ bot:
   # group_id: 处理指定群组（-1 表示所有群组）
   group_id: -1
 
+  # 入群验证等待秒数（优先等待其他机器人处理）
+  wait_sec: 3
+
   # Webhook Configuration
   webhook:
     # Public webhook URL (required) - e.g., https://yourdomain.com/webhook

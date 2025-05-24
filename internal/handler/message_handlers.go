@@ -217,7 +217,7 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 			if _, ok := pendingUsers[user.ID]; !ok {
 				pendingUsers[user.ID] = chatId
 				go func() {
-					time.Sleep(1 * time.Second)
+					time.Sleep(time.Duration(config.Get().Bot.WaitSec) * time.Second)
 					if _, ok := pendingUsers[user.ID]; ok {
 						reason := "reason_join_group"
 						restrictUser(bot, chatId, user, reason)
