@@ -222,7 +222,6 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 					if _, ok := pendingUsers[user.ID]; ok {
 						reason := "reason_join_group"
 						restrictUser(bot, chatId, user, reason)
-						delete(pendingUsers, user.ID)
 					}
 				}()
 			}
@@ -242,16 +241,6 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 			}
 		}
 
-		// 不重复封禁
-		banRecords, err := service.GetUserActiveBanRecords(user.ID, chatId)
-		if err != nil {
-			logger.Warningf("Error getting active ban records for user %d: %v", user.ID, err)
-			return err
-		}
-		if len(banRecords) > 0 {
-			return nil
-		}
-
 		// Check if user should be restricted
 		groupInfo := service.GetGroupInfo(bot, chatId, false)
 		shouldRestrict, reason := ShouldRestrictUser(bot, groupInfo, user)
@@ -269,14 +258,17 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 
 func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string) {
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
-	RestrictUser(bot, chatId, user.ID)
-	service.CreateBanRecord(chatId, user.ID, reason)
-	// Send warning only if notifications are enabled
-	groupInfo := service.GetGroupInfo(bot, chatId, false)
-	if groupInfo.EnableNotification {
-		NotifyAdmin(bot, groupInfo.GroupID, user, reason)
-	}
-	NotifyUserInGroup(bot, groupInfo.GroupID, user)
+	delete(pendingUsers, user.ID)
+	go func() {
+		RestrictUser(bot, chatId, user.ID)
+		service.CreateBanRecord(chatId, user.ID, reason)
+		// Send warning only if notifications are enabled
+		groupInfo := service.GetGroupInfo(bot, chatId, false)
+		if groupInfo.EnableNotification {
+			NotifyAdmin(bot, groupInfo.GroupID, user, reason)
+		}
+		NotifyUserInGroup(bot, groupInfo.GroupID, user)
+	}()
 }
 
 // handleMyChatMemberUpdate processes updates to the bot's own chat member status
