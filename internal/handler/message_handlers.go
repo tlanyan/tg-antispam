@@ -257,6 +257,12 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 }
 
 func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string) {
+	records, err := service.GetUserActiveBanRecords(user.ID, chatId)
+	if err == nil && len(records) > 0 {
+		logger.Infof("User: %s, already banned, reason: %s", user.FirstName, records[0].Reason)
+		return
+	}
+
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
 	delete(pendingUsers, user.ID)
 	go func() {
