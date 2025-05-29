@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mymmrac/telego"
@@ -22,6 +23,8 @@ var unbannParamRegex = regexp.MustCompile(`^unban_(-?\d+)_(\d+)$`)
 
 // pendingUsers user and group id to pending security check
 var pendingUsers = make(map[int64]int64)
+
+var restrictMutex sync.Mutex
 
 // handleIncomingMessage processes new messages in chats
 func handleIncomingMessage(bot *telego.Bot, message telego.Message) error {
@@ -257,6 +260,9 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 }
 
 func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string) {
+	restrictMutex.Lock()
+	defer restrictMutex.Unlock()
+
 	records, err := service.GetUserActiveBanRecords(user.ID, chatId)
 	if err == nil && len(records) > 0 {
 		logger.Infof("User: %s, already banned, reason: %s", user.FirstName, records[0].Reason)
