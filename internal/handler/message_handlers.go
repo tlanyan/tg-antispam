@@ -175,7 +175,7 @@ func handleChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 	}
 
 	newChatMember := update.ChatMember.NewChatMember
-	logger.Infof("new Chat member: %+v", newChatMember)
+	logger.Infof("new Chat member: %+v, from user: %+v", newChatMember, fromUser)
 	groupInfo := service.GetGroupInfo(bot, chatId, true)
 	// Track admin who promoted the bot
 	if newChatMember.MemberUser().ID == botID {
@@ -271,9 +271,9 @@ func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string
 
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
 	delete(pendingUsers, user.ID)
+	service.CreateBanRecord(chatId, user.ID, reason)
 	go func() {
 		RestrictUser(bot, chatId, user.ID)
-		service.CreateBanRecord(chatId, user.ID, reason)
 		// Send warning only if notifications are enabled
 		groupInfo := service.GetGroupInfo(bot, chatId, false)
 		if groupInfo.EnableNotification {
