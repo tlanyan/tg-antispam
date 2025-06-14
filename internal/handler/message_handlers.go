@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/mymmrac/telego"
 
 	"tg-antispam/internal/config"
+	"tg-antispam/internal/crash"
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
@@ -220,13 +222,14 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 		if !fromUser.IsBot && newChatMember.MemberStatus() == telego.MemberStatusMember {
 			if _, ok := pendingUsers[user.ID]; !ok {
 				pendingUsers[user.ID] = chatId
-				go func() {
+				userCopy := user // 创建副本避免闭包问题
+				crash.SafeGoroutine(fmt.Sprintf("pending-user-check-%d-%d", chatId, userCopy.ID), func() {
 					time.Sleep(time.Duration(config.Get().Bot.WaitSec) * time.Second)
-					if _, ok := pendingUsers[user.ID]; ok {
+					if _, ok := pendingUsers[userCopy.ID]; ok {
 						reason := "reason_join_group"
-						restrictUser(bot, chatId, user, reason)
+						restrictUser(bot, chatId, userCopy, reason)
 					}
-				}()
+				})
 			}
 
 			return nil
@@ -275,15 +278,17 @@ func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
 	delete(pendingUsers, user.ID)
 	service.CreateBanRecord(chatId, user.ID, reason)
-	go func() {
-		RestrictUser(bot, chatId, user.ID)
+	userCopy := user // 创建副本避免闭包问题
+	reasonCopy := reason // 创建副本避免闭包问题
+	crash.SafeGoroutine(fmt.Sprintf("restrict-user-%d-%d", chatId, userCopy.ID), func() {
+		RestrictUser(bot, chatId, userCopy.ID)
 		// Send warning only if notifications are enabled
 		groupInfo := service.GetGroupInfo(bot, chatId, false)
 		if groupInfo.EnableNotification {
-			NotifyAdmin(bot, groupInfo.GroupID, user, reason)
+			NotifyAdmin(bot, groupInfo.GroupID, userCopy, reasonCopy)
 		}
-		NotifyUserInGroup(bot, groupInfo.GroupID, user)
-	}()
+		NotifyUserInGroup(bot, groupInfo.GroupID, userCopy)
+	})
 }
 
 // handleMyChatMemberUpdate processes updates to the bot's own chat member status

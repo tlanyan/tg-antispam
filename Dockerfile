@@ -32,4 +32,6 @@ COPY --from=builder /app/configs/config.yaml /app/config.yaml
 RUN chmod +x /app/tg-antispam
 
 # Run the application with default config path
+# 设置环境变量确保输出不被缓冲，立即显示崩溃信息
+ENV GOTRACEBACK=all
 CMD ["/app/tg-antispam", "-config=/app/config.yaml"]

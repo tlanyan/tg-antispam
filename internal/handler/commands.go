@@ -8,6 +8,7 @@ import (
 
 	"github.com/mymmrac/telego"
 
+	"tg-antispam/internal/crash"
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
@@ -389,13 +390,13 @@ func PrivateChatWarning(bot *telego.Bot, message telego.Message) error {
 	if err != nil {
 		logger.Warningf("Error sending use private chat message: %v", err)
 	} else {
-		go func() {
+		crash.SafeGoroutine("private-chat-warning-cleanup", func() {
 			time.Sleep(time.Minute * 3)
 			bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
 				ChatID:    telego.ChatID{ID: message.Chat.ID},
 				MessageID: msg.MessageID,
 			})
-		}()
+		})
 	}
 	return err
 }

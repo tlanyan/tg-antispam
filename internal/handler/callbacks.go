@@ -9,6 +9,7 @@ import (
 
 	"github.com/mymmrac/telego"
 
+	"tg-antispam/internal/crash"
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
@@ -659,7 +660,7 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 		UnrestrictUser(bot, groupID, userID)
 		service.MarkBanRecordUnbanned(groupID, userID, "self")
 
-		go func() {
+		crash.SafeGoroutine(fmt.Sprintf("cleanup-pending-messages-%d-%d", userID, groupID), func() {
 			msgs, err := service.GetPendingMsgsByUserID(userID, groupID)
 			if err != nil {
 				logger.Warningf("Error getting pending messages: %v", err)
@@ -672,7 +673,7 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 					service.RemovePendingMsg(msg.ChatID, msg.MessageID)
 				}
 			}
-		}()
+		})
 
 		// Send success message
 		_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{

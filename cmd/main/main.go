@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -11,9 +12,9 @@ import (
 
 	"tg-antispam/internal/bot"
 	"tg-antispam/internal/config"
+	"tg-antispam/internal/crash"
 	"tg-antispam/internal/handler"
 	"tg-antispam/internal/logger"
-	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
 	"tg-antispam/internal/storage"
 
@@ -21,6 +22,12 @@ import (
 )
 
 func main() {
+	// 设置崩溃处理器，确保在任何 panic 时都能记录堆栈信息
+	defer crash.RecoverWithStackAndExit("main")
+
+	// 设置全局崩溃处理
+	crash.SetupCrashHandler()
+
 	configPath := flag.String("config", "configs/config.yaml", "Path to configuration file")
 	flag.Parse()
 
@@ -53,11 +60,11 @@ func main() {
 
 	handler.Initialize(cfg)
 
-	go func() {
+	crash.SafeGoroutine("http-server", func() {
 		if err := server.Start(); err != nil {
-			log.Fatalf("HTTP server error: %v", err)
+			logger.Fatalf("HTTP server error: %v", err)
 		}
-	}()
+	})
 
 	// Give server time to start
 	time.Sleep(500 * time.Millisecond)
@@ -102,25 +109,26 @@ func handlePendingDeletions(botService *bot.BotService, cfg *config.Config) {
 		} else {
 			logger.Infof("Found %d pending message deletions to process.", len(pendingMsgs))
 			for _, msg := range pendingMsgs {
-				go func(msg models.PendingMessage) {
-					durationUntilDelete := time.Until(msg.CreatedAt.Add(3 * time.Minute))
+				msgCopy := msg // 创建副本避免闭包问题
+				crash.SafeGoroutine(fmt.Sprintf("pending-deletion-%d-%d", msgCopy.ChatID, msgCopy.MessageID), func() {
+					durationUntilDelete := time.Until(msgCopy.CreatedAt.Add(3 * time.Minute))
 					if durationUntilDelete < 0 {
 						durationUntilDelete = 0 // Delete immediately if past due
 					}
 
-					logger.Infof("Rescheduling deletion for message %d in chat %d in %v", msg.MessageID, msg.ChatID, durationUntilDelete)
+					logger.Infof("Rescheduling deletion for message %d in chat %d in %v", msgCopy.MessageID, msgCopy.ChatID, durationUntilDelete)
 					time.Sleep(durationUntilDelete)
 
 					botService.Bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-						ChatID:    telego.ChatID{ID: msg.ChatID},
-						MessageID: msg.MessageID,
+						ChatID:    telego.ChatID{ID: msgCopy.ChatID},
+						MessageID: msgCopy.MessageID,
 					})
 
 					// Remove from DB after attempting deletion
-					if err = service.RemovePendingMsg(msg.ChatID, msg.MessageID); err != nil {
-						logger.Warningf("Error removing pending deletion from DB for chat %d, message %d: %v", msg.ChatID, msg.MessageID, err)
+					if err = service.RemovePendingMsg(msgCopy.ChatID, msgCopy.MessageID); err != nil {
+						logger.Warningf("Error removing pending deletion from DB for chat %d, message %d: %v", msgCopy.ChatID, msgCopy.MessageID, err)
 					}
-				}(msg)
+				})
 			}
 		}
 	}

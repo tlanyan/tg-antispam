@@ -13,6 +13,7 @@ import (
 
 	"github.com/mymmrac/telego"
 
+	"tg-antispam/internal/crash"
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
@@ -330,7 +331,7 @@ func NotifyUserInGroup(bot *telego.Bot, groupID int64, user telego.User) {
 		addInMemoryPendingDeletion(groupInfo.GroupID, msg.MessageID)
 	}
 
-	go func() {
+	crash.SafeGoroutine(fmt.Sprintf("warning-message-cleanup-%d-%d", groupInfo.GroupID, msg.MessageID), func() {
 		time.Sleep(3 * time.Minute)
 		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
 			ChatID:    telego.ChatID{ID: groupInfo.GroupID},
@@ -343,7 +344,7 @@ func NotifyUserInGroup(bot *telego.Bot, groupID int64, user telego.User) {
 			// Remove from in-memory list
 			removeInMemoryPendingDeletion(groupInfo.GroupID, msg.MessageID)
 		}
-	}()
+	})
 }
 
 // UnrestrictUser removes restrictions from a user in a chat
