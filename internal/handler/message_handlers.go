@@ -83,7 +83,13 @@ func handlePrivateMessage(bot *telego.Bot, message telego.Message) error {
 				return err
 			}
 
-			return SendMathVerificationMessage(bot, userID, groupID, nil)
+			query := telego.CallbackQuery{
+				ID:      "",
+				From:    *message.From,
+				Data:    "",
+				Message: &message,
+			}
+			return SendMathVerificationMessage(bot, userID, groupID, &query)
 		}
 
 		// If not an unban request, continue with normal processing
@@ -278,7 +284,7 @@ func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
 	delete(pendingUsers, user.ID)
 	service.CreateBanRecord(chatId, user.ID, reason)
-	userCopy := user // 创建副本避免闭包问题
+	userCopy := user     // 创建副本避免闭包问题
 	reasonCopy := reason // 创建副本避免闭包问题
 	crash.SafeGoroutine(fmt.Sprintf("restrict-user-%d-%d", chatId, userCopy.ID), func() {
 		RestrictUser(bot, chatId, userCopy.ID)

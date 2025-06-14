@@ -428,7 +428,13 @@ func handleSelfUnbanCommand(bot *telego.Bot, message telego.Message) error {
 	}
 	if len(records) == 1 {
 		// Directly start math verification for the single ban record
-		return SendMathVerificationMessage(bot, userID, records[0].GroupID, nil)
+		query := telego.CallbackQuery{
+			ID:      "",
+			From:    *message.From,
+			Data:    "",
+			Message: &message,
+		}
+		return SendMathVerificationMessage(bot, userID, records[0].GroupID, &query)
 	}
 	// Multiple records: ask user to choose which group to unban
 	var buttons [][]telego.InlineKeyboardButton

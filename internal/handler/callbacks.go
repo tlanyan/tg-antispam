@@ -523,6 +523,11 @@ func showLanguageSelection(bot *telego.Bot, query telego.CallbackQuery, groupID 
 			}
 		}
 	} else {
+		if query.Message == nil {
+			logger.Warningf("Query message is nil in language selection")
+			return nil
+		}
+
 		var message telego.Message
 		switch msg := query.Message.(type) {
 		case *telego.Message:
@@ -587,7 +592,7 @@ func SendMathVerificationMessage(bot *telego.Bot, userID int64, groupID int64, q
 	}
 
 	// Answer the callback query
-	if query != nil {
+	if query != nil && query.ID != "" {
 		err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: query.ID,
 		})
@@ -686,7 +691,13 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 		count := verificationAttempts[userID] + 1
 		verificationAttempts[userID] = count
 		if count >= 3 {
-			err = SendMathVerificationMessage(bot, userID, expectedAnswer.GroupID, nil)
+			query := telego.CallbackQuery{
+				ID:      "",
+				From:    *message.From,
+				Data:    "",
+				Message: &message,
+			}
+			err = SendMathVerificationMessage(bot, userID, expectedAnswer.GroupID, &query)
 		} else {
 			// Send failure message
 			_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{

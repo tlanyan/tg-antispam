@@ -144,6 +144,11 @@ func GetBotLang(bot *telego.Bot, message telego.Message) string {
 }
 
 func GetBotQueryLang(bot *telego.Bot, query *telego.CallbackQuery) string {
+	// 首先检查 query 和 query.Message 是否为 nil
+	if query == nil || query.Message == nil {
+		return "zh_CN"
+	}
+
 	if msg, ok := query.Message.(*telego.Message); ok {
 		return GetBotLang(bot, *msg)
 	}
