@@ -68,7 +68,11 @@ func handlePingCommand(bot *telego.Bot, message telego.Message) error {
 func checkAdminMessage(bot *telego.Bot, message telego.Message) error {
 	// Check if sender is admin
 	if !isUserAdmin(bot, message.Chat.ID, message.From.ID) {
-		language := GetBotLang(bot, message)
+		groupInfo := service.GetGroupInfo(bot, message.Chat.ID, true)
+		if groupInfo.AdminID == -1 {
+			service.UpdateGroupInfo(groupInfo)
+		}
+		language := groupInfo.Language
 		botUsername, _ := getBotUsername(bot)
 		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID: telego.ChatID{ID: message.Chat.ID},
@@ -345,15 +349,18 @@ func buildGroupSettingsMessageParts(groupInfo *models.GroupInfo, language string
 
 // showGroupSettings displays the settings for a group
 func showGroupSettings(bot *telego.Bot, message telego.Message, groupID int64) error {
-	language := GetBotLang(bot, message)
-
 	// 获取群组信息
-	groupInfo := service.GetGroupInfo(bot, groupID, false)
-	if groupInfo == nil || !groupInfo.IsAdmin {
+	groupInfo := service.GetGroupInfo(bot, groupID, true)
+	if groupInfo.AdminID == -1 {
+		groupInfo.AdminID = message.From.ID
+		service.UpdateGroupInfo(groupInfo)
+	}
+
+	if !groupInfo.IsAdmin {
 		// 机器人不是管理员
 		msg, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      models.GetTranslation(language, "bot_not_admin"),
+			Text:      models.GetTranslation(groupInfo.Language, "bot_not_admin"),
 			ParseMode: "HTML",
 		})
 		if err != nil {
@@ -363,7 +370,7 @@ func showGroupSettings(bot *telego.Bot, message telego.Message, groupID int64) e
 		return err
 	}
 
-	settingsText, keyboard := buildGroupSettingsMessageParts(groupInfo, language, groupID)
+	settingsText, keyboard := buildGroupSettingsMessageParts(groupInfo, groupInfo.Language, groupID)
 
 	// 发送设置消息
 	msg, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
