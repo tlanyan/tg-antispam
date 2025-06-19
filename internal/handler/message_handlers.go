@@ -184,6 +184,14 @@ func handleChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 
 	newChatMember := update.ChatMember.NewChatMember
 	logger.Infof("new Chat member: %+v, from user: %+v", newChatMember, fromUser)
+
+	// 对于用户离开群组的情况，不需要创建新的群组信息
+	if newChatMember.MemberStatus() == telego.MemberStatusLeft || newChatMember.MemberStatus() == telego.MemberStatusBanned {
+		// 只从pending用户列表中移除，不创建群组信息
+		delete(pendingUsers, newChatMember.MemberUser().ID)
+		return nil
+	}
+
 	groupInfo := service.GetGroupInfo(bot, chatId, true)
 	// Track admin who promoted the bot
 	if newChatMember.MemberUser().ID == botID {

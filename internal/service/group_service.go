@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
@@ -102,18 +103,22 @@ func UpdateGroupInfo(groupInfo *models.GroupInfo) {
 }
 
 func GetBotPromoterID(bot *telego.Bot, chatID int64) (int64, bool) {
+	// 创建带超时的context
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	newBot, err := telego.NewBot(globalConfig.Bot.Token)
 	if err != nil {
 		logger.Warningf("Error creating temporary bot for admin check: %v", err)
 		return 0, false
 	}
-	defer newBot.Close(context.Background())
+	defer newBot.Close(ctx)
 
-	admins, err := newBot.GetChatAdministrators(context.Background(), &telego.GetChatAdministratorsParams{
+	admins, err := newBot.GetChatAdministrators(ctx, &telego.GetChatAdministratorsParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
-		logger.Warningf("Error getting chat administrators: %v", err)
+		logger.Warningf("Error getting chat administrators for chat %d: %v", chatID, err)
 		return 0, false
 	}
 
