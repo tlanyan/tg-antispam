@@ -151,7 +151,10 @@ func CasRequest(userID int64) (bool, string) {
 
 // HasLinksInBio checks if a user has t.me links in their bio
 func HasLinksInBio(bot *telego.Bot, userID int64) bool {
-	chat, err := bot.GetChat(context.Background(), &telego.GetChatParams{
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	chat, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: userID},
 	})
 
@@ -349,7 +352,10 @@ func NotifyUserInGroup(bot *telego.Bot, groupID int64, user telego.User) {
 
 // UnrestrictUser removes restrictions from a user in a chat
 func UnrestrictUser(bot *telego.Bot, chatID int64, userID int64) {
-	chatInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 

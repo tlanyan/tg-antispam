@@ -52,7 +52,10 @@ func GetGroupInfo(bot *telego.Bot, groupID int64, create bool) *models.GroupInfo
 
 	// get group name and link from telegram
 	if groupID < 0 {
-		chatInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 			ChatID: telego.ChatID{ID: groupID},
 		})
 

@@ -10,13 +10,17 @@ import (
 	"strconv"
 	"strings"
 	"tg-antispam/internal/service"
+	"time"
 
 	"github.com/mymmrac/telego"
 )
 
 // isUserAdmin checks if a user is an admin in a chat
 func isUserAdmin(bot *telego.Bot, chatID int64, userID int64) bool {
-	admins, err := bot.GetChatAdministrators(context.Background(), &telego.GetChatAdministratorsParams{
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	admins, err := bot.GetChatAdministrators(ctx, &telego.GetChatAdministratorsParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
@@ -61,8 +65,11 @@ func getGroupAndUserID(data string) (int64, int64, error) {
 }
 
 func getLinkedUserName(bot *telego.Bot, userID int64) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	// Get user information
-	userInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
+	userInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: userID},
 	})
 	if err != nil {
