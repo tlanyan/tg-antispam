@@ -11,19 +11,20 @@ import (
 	"github.com/mymmrac/telego"
 )
 
-func GetGroupInfo(bot *telego.Bot, chatID int64, create bool) *models.GroupInfo {
+// GetGroupInfo gets group info from cache or database
+func GetGroupInfo(bot *telego.Bot, groupID int64, create bool) *models.GroupInfo {
 	// First check the in-memory cache
-	groupInfo := groupInfoManager.GetGroupInfo(chatID)
+	groupInfo := groupInfoManager.GetGroupInfo(groupID)
 	if groupInfo != nil {
 		return groupInfo
 	}
 
 	if groupRepository != nil {
-		dbGroupInfo, err := groupRepository.GetGroupInfo(chatID)
+		dbGroupInfo, err := groupRepository.GetGroupInfo(groupID)
 		if err != nil {
 			logger.Warningf("Error fetching group info from database: %v", err)
 		} else if dbGroupInfo != nil {
-			logger.Infof("Found group info in database for chatID: %d", chatID)
+			logger.Infof("Found group info in database for groupID: %d", groupID)
 			groupInfo = dbGroupInfo
 			// Add to cache
 			groupInfoManager.AddGroupInfo(groupInfo)
@@ -35,9 +36,9 @@ func GetGroupInfo(bot *telego.Bot, chatID int64, create bool) *models.GroupInfo 
 		return nil
 	}
 
-	logger.Infof("Creating new group info for chatID: %d", chatID)
+	logger.Infof("Creating new group info for groupID: %d", groupID)
 	groupInfo = &models.GroupInfo{
-		GroupID:            chatID,
+		GroupID:            groupID,
 		IsAdmin:            false,
 		AdminID:            -1,
 		EnableNotification: true,
@@ -49,10 +50,10 @@ func GetGroupInfo(bot *telego.Bot, chatID int64, create bool) *models.GroupInfo 
 		Language:           "zh_CN",
 	}
 
-	// group
-	if chatID < 0 {
+	// get group name and link from telegram
+	if groupID < 0 {
 		chatInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
-			ChatID: telego.ChatID{ID: chatID},
+			ChatID: telego.ChatID{ID: groupID},
 		})
 
 		if err != nil {
@@ -67,7 +68,7 @@ func GetGroupInfo(bot *telego.Bot, chatID int64, create bool) *models.GroupInfo 
 		} else {
 			// For private groups, convert the chat ID to work with t.me links
 			// Telegram requires removing the -100 prefix from supergroup IDs for links
-			groupIDForLink := chatID
+			groupIDForLink := groupID
 			if groupIDForLink < -1000000000000 {
 				// Extract the actual ID from the negative number (skip the -100 prefix)
 				groupIDForLink = -groupIDForLink - 1000000000000
@@ -75,7 +76,7 @@ func GetGroupInfo(bot *telego.Bot, chatID int64, create bool) *models.GroupInfo 
 			groupInfo.GroupLink = fmt.Sprintf("https://t.me/c/%d", groupIDForLink)
 		}
 
-		groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(bot, chatID)
+		groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(bot, groupID)
 	}
 
 	logger.Infof("Group info created: %+v", groupInfo)
@@ -171,7 +172,10 @@ func GetBotPromoterID(bot *telego.Bot, chatID int64) (int64, bool) {
 
 // GetLinkedGroupName gets a linked HTML representation of the group name with caching
 func GetGroupName(bot *telego.Bot, chatID int64) (string, string) {
-	chatInfo, err := bot.GetChat(context.Background(), &telego.GetChatParams{
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	chatInfo, err := bot.GetChat(ctx, &telego.GetChatParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {

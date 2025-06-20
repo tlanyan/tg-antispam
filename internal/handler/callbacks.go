@@ -85,7 +85,7 @@ func handleUnbanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	// Unrestrict the user
 	UnrestrictUser(bot, groupID, userID)
 	// Update ban_records to mark as unbanned
-	service.MarkBanRecordUnbanned(groupID, userID, "admin")
+	service.UnbanUserInGroup(groupID, userID, "admin")
 
 	// Notify the admin that the action was successful
 	err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
@@ -663,7 +663,7 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 		delete(verificationAttempts, userID)
 
 		UnrestrictUser(bot, groupID, userID)
-		service.MarkBanRecordUnbanned(groupID, userID, "self")
+		service.UnbanUserInGroup(groupID, userID, "self")
 
 		crash.SafeGoroutine(fmt.Sprintf("cleanup-pending-messages-%d-%d", userID, groupID), func() {
 			msgs, err := service.GetPendingMsgsByUserID(userID, groupID)

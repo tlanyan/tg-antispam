@@ -28,8 +28,8 @@ func (r *BanRepository) Create(record *models.BanRecord) error {
 	return r.db.Create(record).Error
 }
 
-// GetActiveByUser returns all non-unbanned records for a user
-func (r *BanRepository) GetActiveByUser(userID int64, groupID int64) ([]*models.BanRecord, error) {
+// GetActiveRecordsByUser returns all non-unbanned records for a user
+func (r *BanRepository) GetActiveRecordsByUser(userID int64, groupID int64) ([]*models.BanRecord, error) {
 	var records []*models.BanRecord
 	var result *gorm.DB
 	if groupID != -1 {
@@ -40,8 +40,8 @@ func (r *BanRepository) GetActiveByUser(userID int64, groupID int64) ([]*models.
 	return records, result.Error
 }
 
-// MarkUnbanned updates a record to mark it as unbanned and sets updated_at
-func (r *BanRepository) MarkUnbanned(groupID, userID int64, unbannedBy string) error {
+// UnbanUserByGroup unban user in a group
+func (r *BanRepository) UnbanUserByGroup(groupID, userID int64, unbannedBy string) error {
 	result := r.db.Model(&models.BanRecord{}).
 		Where("group_id = ? AND user_id = ? AND is_unbanned = ?", groupID, userID, false).
 		Updates(map[string]interface{}{"is_unbanned": true, "updated_at": time.Now(), "unbanned_by": unbannedBy})

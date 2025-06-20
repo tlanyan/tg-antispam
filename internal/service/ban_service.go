@@ -15,18 +15,18 @@ func CreateBanRecord(groupID, userID int64, reason string) {
 	}
 }
 
-// GetUserActiveBanRecords retrieves all active (not unbanned) ban records for a user
+// GetUserActiveBanRecords retrieves all active ban records for a user
 func GetUserActiveBanRecords(userID int64, groupID int64) ([]*models.BanRecord, error) {
 	if banRepository != nil {
-		return banRepository.GetActiveByUser(userID, groupID)
+		return banRepository.GetActiveRecordsByUser(userID, groupID)
 	}
 	return nil, nil
 }
 
-// MarkBanRecordUnbanned marks a user's ban record as unbanned for a specific group
-func MarkBanRecordUnbanned(groupID, userID int64, unbannedBy string) {
+// UnbanUserInGroup unban user in a group
+func UnbanUserInGroup(groupID, userID int64, unbannedBy string) {
 	if banRepository != nil {
-		if err := banRepository.MarkUnbanned(groupID, userID, unbannedBy); err != nil {
+		if err := banRepository.UnbanUserByGroup(groupID, userID, unbannedBy); err != nil {
 			logger.Warningf("Error marking ban record unbanned: %v", err)
 		}
 	}
