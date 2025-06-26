@@ -111,14 +111,7 @@ func GetBotPromoterID(bot *telego.Bot, chatID int64) (int64, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	newBot, err := telego.NewBot(globalConfig.Bot.Token)
-	if err != nil {
-		logger.Warningf("Error creating temporary bot for admin check: %v", err)
-		return 0, false
-	}
-	defer newBot.Close(ctx)
-
-	admins, err := newBot.GetChatAdministrators(ctx, &telego.GetChatAdministratorsParams{
+	admins, err := bot.GetChatAdministrators(ctx, &telego.GetChatAdministratorsParams{
 		ChatID: telego.ChatID{ID: chatID},
 	})
 	if err != nil {
