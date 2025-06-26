@@ -41,6 +41,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_emoji_name":      "切换默认封禁姓名表情符号用户",
 		"cmd_desc_toggle_bio_link":        "切换默认封禁个人简介可疑链接用户",
 		"cmd_desc_self_unban":             "自助解封",
+		"cmd_desc_ping":                   "ping机器人",
 
 		"user_not_admin":               "您不是群组管理员，无法使用该指令",
 		"empty_group_list":             "群组记录为空，请将机器人添加到您管理的群组中并设置为管理员",
@@ -159,6 +160,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_notifications":   "切換管理員通知",
 		"cmd_desc_language":               "設置機器人語言",
 		"cmd_desc_self_unban":             "自助解封",
+		"cmd_desc_ping":                   "Ping the bot",
 
 		"user_not_admin":               "您不是群組管理員，無法使用該指令",
 		"empty_group_list":             "群組記錄為空，請將機器人添加到您管理的群組中並設置為管理員",
@@ -284,6 +286,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_toggle_emoji_name":      "Toggle name emoji banning",
 		"cmd_desc_toggle_bio_link":        "Toggle bio link banning",
 		"cmd_desc_self_unban":             "Self-unban",
+		"cmd_desc_ping":                   "Ping the bot",
 
 		"user_not_admin":               "You are not an admin in this group, and cannot use this command",
 		"empty_group_list":             "Group list is empty, please add the bot to your groups and set it as an administrator",

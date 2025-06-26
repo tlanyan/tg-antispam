@@ -84,6 +84,7 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 		{Command: "settings", DescKey: "cmd_desc_settings"},
 		{Command: "self_unban", DescKey: "cmd_desc_self_unban"},
 		{Command: "language", DescKey: "cmd_desc_language"},
+		{Command: "ping", DescKey: "cmd_desc_ping"},
 	}
 
 	// Map of language codes to Telegram language codes

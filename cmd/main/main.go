@@ -81,6 +81,21 @@ func main() {
 	sig := <-sigChan
 	logger.Infof("Received signal: %v, shutting down...", sig)
 
+	logger.Info("Waiting for message handlers to complete...")
+	// 等待所有消息处理器完成
+	done := make(chan struct{})
+	go func() {
+		handler.WaitForHandlers()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		logger.Info("All message handlers completed")
+	case <-time.After(30 * time.Second):
+		logger.Warning("Timeout waiting for message handlers, proceeding with shutdown")
+	}
+
 	logger.Info("attempting to clear in-memory pending deletions...")
 	if botService.Bot != nil { // Ensure bot service is available
 		handler.DeleteAllPendingInMemoryMessages(botService.Bot)

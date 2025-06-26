@@ -12,6 +12,9 @@ bot:
   # 入群验证等待秒数（优先等待其他机器人处理）
   wait_sec: 3
 
+  # 最大并发处理消息数量（避免资源耗尽）
+  max_concurrent_messages: 100
+
   # Webhook Configuration
   webhook:
     # Public webhook URL (required) - e.g., https://yourdomain.com/webhook

@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/mymmrac/telego"
 
-	"tg-antispam/internal/crash"
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
 	"tg-antispam/internal/service"
@@ -52,6 +50,8 @@ func RegisterCommands(bot *telego.Bot, message telego.Message) (bool, error) {
 		return true, handleSelfUnbanCommand(bot, message)
 	case "/ping":
 		return true, handlePingCommand(bot, message)
+	case "/status":
+		return true, handleStatusCommand(bot, message)
 	}
 
 	return false, nil
@@ -61,6 +61,21 @@ func handlePingCommand(bot *telego.Bot, message telego.Message) error {
 	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 		ChatID: telego.ChatID{ID: message.Chat.ID},
 		Text:   "pong",
+	})
+	return err
+}
+
+func handleStatusCommand(bot *telego.Bot, message telego.Message) error {
+	// 只允许管理员查看状态信息
+	if message.Chat.Type != "private" {
+		return PrivateChatWarning(bot, message)
+	}
+
+	statusText := GetDetailedStatus()
+	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:    telego.ChatID{ID: message.Chat.ID},
+		Text:      fmt.Sprintf("```\n%s\n```", statusText),
+		ParseMode: "MarkdownV2",
 	})
 	return err
 }
@@ -389,22 +404,11 @@ func showGroupSettings(bot *telego.Bot, message telego.Message, groupID int64) e
 
 func PrivateChatWarning(bot *telego.Bot, message telego.Message) error {
 	language := GetBotLang(bot, message)
-	msg, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 		ChatID:    telego.ChatID{ID: message.Chat.ID},
 		Text:      models.GetTranslation(language, "use_private_chat"),
 		ParseMode: "HTML",
 	})
-	if err != nil {
-		logger.Warningf("Error sending use private chat message: %v", err)
-	} else {
-		crash.SafeGoroutine("private-chat-warning-cleanup", func() {
-			time.Sleep(time.Minute * 3)
-			bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-				ChatID:    telego.ChatID{ID: message.Chat.ID},
-				MessageID: msg.MessageID,
-			})
-		})
-	}
 	return err
 }
 
