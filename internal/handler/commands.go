@@ -44,6 +44,8 @@ func RegisterCommands(bot *telego.Bot, message telego.Message) (bool, error) {
 		return true, handleToggleCommand(bot, message, "toggle_notifications")
 	case "/language_group":
 		return true, handleToggleCommand(bot, message, "language_group")
+	case "/wait_sec":
+		return true, handleToggleCommand(bot, message, "wait_sec")
 	case "/language":
 		return true, handleLanguageCommand(bot, message)
 	case "/self_unban":
@@ -127,7 +129,7 @@ func handleLanguageCommand(bot *telego.Bot, message telego.Message) error {
 func sendHelpMessage(bot *telego.Bot, message telego.Message) error {
 	language := GetBotLang(bot, message)
 
-	helpText := fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
+	helpText := fmt.Sprintf("<b>%s</b>\n\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n\n<b>%s</b>\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n<b>%s</b>",
 		models.GetTranslation(language, "help_title"),
 		models.GetTranslation(language, "help_description"),
 		models.GetTranslation(language, "general_commands"),
@@ -144,6 +146,7 @@ func sendHelpMessage(bot *telego.Bot, message telego.Message) error {
 		models.GetTranslation(language, "help_cmd_toggle_bio_link"),
 		models.GetTranslation(language, "help_cmd_toggle_notifications"),
 		models.GetTranslation(language, "help_cmd_language_group"),
+		models.GetTranslation(language, "help_cmd_wait_sec"),
 		models.GetTranslation(language, "help_note"),
 	)
 
@@ -313,6 +316,7 @@ func buildGroupSettingsMessageParts(groupInfo *models.GroupInfo, language string
 	settingsText += fmt.Sprintf(models.GetTranslation(language, "settings_bio_link"), bioLinkStatus) + "\n"
 	settingsText += fmt.Sprintf(models.GetTranslation(language, "settings_notifications"), notificationsStatus) + "\n"
 	settingsText += fmt.Sprintf(models.GetTranslation(language, "settings_language"), langName) + "\n"
+	settingsText += fmt.Sprintf(models.GetTranslation(language, "settings_wait_sec"), fmt.Sprintf("%d", groupInfo.WaitSec)) + "\n"
 
 	// 创建设置按钮
 	keyboard := [][]telego.InlineKeyboardButton{
@@ -356,6 +360,12 @@ func buildGroupSettingsMessageParts(groupInfo *models.GroupInfo, language string
 			{
 				Text:         models.GetTranslation(language, "change_language"),
 				CallbackData: fmt.Sprintf("action:language_group:%d", groupID),
+			},
+		},
+		{
+			{
+				Text:         models.GetTranslation(language, "change_wait_sec"),
+				CallbackData: fmt.Sprintf("action:wait_sec:%d", groupID),
 			},
 		},
 	}

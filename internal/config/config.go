@@ -21,7 +21,6 @@ type BotConfig struct {
 	Token                 string        `mapstructure:"token"`
 	Webhook               WebhookConfig `mapstructure:"webhook"`
 	GroupID               int64         `mapstructure:"group_id"`
-	WaitSec               int           `mapstructure:"wait_sec"`
 	MaxConcurrentMessages int           `mapstructure:"max_concurrent_messages"`
 }
 
@@ -118,7 +117,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("bot.webhook.key_file", "")
 
 	v.SetDefault("bot.group_id", -1)
-	v.SetDefault("bot.wait_sec", 3)
 	v.SetDefault("bot.max_concurrent_messages", 100)
 
 	v.SetDefault("logger.directory", "logs")

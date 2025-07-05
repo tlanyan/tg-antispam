@@ -235,15 +235,22 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 		// 首次入群，等待入群机器人处理，如果没有入群机器人则封禁
 		if !fromUser.IsBot && newChatMember.MemberStatus() == telego.MemberStatusMember {
 			if _, ok := pendingUsers[user.ID]; !ok {
-				pendingUsers[user.ID] = chatId
-				userCopy := user // 创建副本避免闭包问题
-				crash.SafeGoroutine(fmt.Sprintf("pending-user-check-%d-%d", chatId, userCopy.ID), func() {
-					time.Sleep(time.Duration(config.Get().Bot.WaitSec) * time.Second)
-					if _, ok := pendingUsers[userCopy.ID]; ok {
-						reason := "reason_join_group"
-						restrictUser(bot, chatId, userCopy, reason)
-					}
-				})
+				groupInfo := service.GetGroupInfo(bot, chatId, false)
+				waitSec := groupInfo.WaitSec
+				if waitSec <= 0 {
+					reason := "reason_join_group"
+					restrictUser(bot, chatId, user, reason)
+				} else {
+					pendingUsers[user.ID] = chatId
+					userCopy := user // 创建副本避免闭包问题
+					crash.SafeGoroutine(fmt.Sprintf("pending-user-check-%d-%d", chatId, userCopy.ID), func() {
+						time.Sleep(time.Duration(waitSec) * time.Second)
+						if _, ok := pendingUsers[userCopy.ID]; ok {
+							reason := "reason_join_group"
+							restrictUser(bot, chatId, userCopy, reason)
+						}
+					})
+				}
 			}
 
 			return nil

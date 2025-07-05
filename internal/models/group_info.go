@@ -14,6 +14,7 @@ type GroupInfo struct {
 	GroupLink          string
 	AdminID            int64
 	IsAdmin            bool
+	WaitSec            int    `gorm:"default:3"`
 	EnableNotification bool   `gorm:"default:true"`
 	BanPremium         bool   `gorm:"default:true"`
 	BanRandomUsername  bool   `gorm:"default:true"`

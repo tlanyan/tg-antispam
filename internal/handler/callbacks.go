@@ -46,6 +46,8 @@ func HandleCallbackQuery(bot *telego.Bot, query telego.CallbackQuery) error {
 		return handleActionSelectionCallback(bot, query)
 	} else if strings.HasPrefix(query.Data, "ban:") {
 		return handleBanCallback(bot, query)
+	} else if strings.HasPrefix(query.Data, "wait_sec:") {
+		return handleWaitSecCallback(bot, query)
 	}
 
 	return nil
@@ -194,6 +196,71 @@ func handleBanCallback(bot *telego.Bot, query telego.CallbackQuery) error {
 	}
 
 	return err
+}
+
+// handleWaitSecCallback processes wait time selection callbacks
+func handleWaitSecCallback(bot *telego.Bot, query telego.CallbackQuery) error {
+	// 解析回调数据: wait_sec:waitTime:groupID
+	parts := strings.Split(query.Data, ":")
+	if len(parts) != 3 {
+		return nil
+	}
+
+	waitTimeStr := parts[1]
+	groupIDStr := parts[2]
+
+	waitTime, err := strconv.Atoi(waitTimeStr)
+	if err != nil {
+		logger.Warningf("Invalid wait time in callback: %s", waitTimeStr)
+		return nil
+	}
+
+	groupID, err := strconv.ParseInt(groupIDStr, 10, 64)
+	if err != nil {
+		logger.Warningf("Invalid group ID in callback: %s", groupIDStr)
+		return nil
+	}
+
+	// 获取群组信息
+	groupInfo := service.GetGroupInfo(bot, groupID, false)
+	if groupInfo == nil {
+		logger.Warningf("Group info not found: %d", groupID)
+		return nil
+	}
+
+	// 检查用户是否有权限
+	if groupInfo.AdminID != query.From.ID {
+		isAdmin, err := checkAdminQuery(bot, query, groupID)
+		if !isAdmin {
+			return err
+		}
+	}
+
+	// 获取语言
+	language := GetBotQueryLang(bot, &query)
+
+	// 更新等待时间
+	groupInfo.WaitSec = waitTime
+	service.UpdateGroupInfo(groupInfo)
+
+	// 通知用户设置已更新
+	updateMessage := fmt.Sprintf(models.GetTranslation(language, "wait_sec_updated"), waitTime)
+	err = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+		CallbackQueryID: query.ID,
+		Text:            updateMessage,
+	})
+	if err != nil {
+		logger.Warningf("Error answering callback query: %v", err)
+	}
+
+	// 更新设置消息
+	if query.Message != nil {
+		if message, ok := query.Message.(*telego.Message); ok {
+			return showGroupSettings(bot, *message, groupID)
+		}
+	}
+
+	return nil
 }
 
 // handleLanguageCallback processes language selection callbacks
@@ -454,6 +521,10 @@ func handleActionSelectionCallback(bot *telego.Bot, query telego.CallbackQuery) 
 	case "language_group":
 		// 显示语言选择界面
 		return showLanguageSelection(bot, query, groupID, language)
+
+	case "wait_sec":
+		// 显示等待时间选择界面
+		return showWaitSecSelection(bot, query, groupID, language)
 	}
 
 	// 保存群组设置
@@ -507,47 +578,90 @@ func showLanguageSelection(bot *telego.Bot, query telego.CallbackQuery, groupID 
 	// 发送或更新消息
 	selectText := models.GetTranslation(language, "select_language")
 
-	if query.ID != "" {
-		if query.Message != nil {
-			if message, ok := query.Message.(*telego.Message); ok {
-				_, err := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
-					ChatID:      telego.ChatID{ID: message.Chat.ID},
-					MessageID:   message.MessageID,
-					Text:        selectText,
-					ParseMode:   "HTML",
-					ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
-				})
-				if err != nil {
-					logger.Warningf("Error editing message for language selection: %v", err)
-				}
-			}
-		}
-	} else {
-		if query.Message == nil {
-			logger.Warningf("Query message is nil in language selection")
-			return nil
-		}
-
-		var message telego.Message
-		switch msg := query.Message.(type) {
-		case *telego.Message:
-			message = *msg
-		default:
-			logger.Warningf("Unexpected message type in language selection: %T", msg)
-			return nil
-		}
-
-		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:      telego.ChatID{ID: message.Chat.ID},
-			Text:        selectText,
-			ParseMode:   "HTML",
-			ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
-		})
-		if err != nil {
-			logger.Warningf("Error sending language selection message: %v", err)
-		}
+	if query.Message == nil {
+		logger.Warningf("Query message is nil in language selection")
+		return nil
 	}
-	return nil
+
+	var message telego.Message
+	switch msg := query.Message.(type) {
+	case *telego.Message:
+		message = *msg
+	default:
+		logger.Warningf("Unexpected message type in language selection: %T", msg)
+		return nil
+	}
+
+	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:      telego.ChatID{ID: message.Chat.ID},
+		Text:        selectText,
+		ParseMode:   "HTML",
+		ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
+	})
+	if err != nil {
+		logger.Warningf("Error sending language selection message: %v", err)
+	}
+
+	return err
+}
+
+// showWaitSecSelection displays wait time selection options
+func showWaitSecSelection(bot *telego.Bot, query telego.CallbackQuery, groupID int64, language string) error {
+	// 创建等待时间选择键盘
+	keyboard := [][]telego.InlineKeyboardButton{
+		{
+			{
+				Text:         "0 " + models.GetTranslation(language, "seconds"),
+				CallbackData: fmt.Sprintf("wait_sec:0:%d", groupID),
+			},
+		},
+		{
+			{
+				Text:         "1 " + models.GetTranslation(language, "seconds"),
+				CallbackData: fmt.Sprintf("wait_sec:1:%d", groupID),
+			},
+		},
+		{
+			{
+				Text:         "3 " + models.GetTranslation(language, "seconds"),
+				CallbackData: fmt.Sprintf("wait_sec:3:%d", groupID),
+			},
+		},
+		{
+			{
+				Text:         "5 " + models.GetTranslation(language, "seconds"),
+				CallbackData: fmt.Sprintf("wait_sec:5:%d", groupID),
+			},
+		},
+	}
+
+	// 发送或更新消息
+	selectText := models.GetTranslation(language, "select_wait_sec")
+
+	if query.Message == nil {
+		logger.Warningf("Query message is nil in wait sec selection")
+		return nil
+	}
+
+	var message telego.Message
+	switch msg := query.Message.(type) {
+	case *telego.Message:
+		message = *msg
+	default:
+		logger.Warningf("Unexpected message type in wait sec selection: %T", msg)
+		return nil
+	}
+
+	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:      telego.ChatID{ID: message.Chat.ID},
+		Text:        selectText,
+		ParseMode:   "HTML",
+		ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
+	})
+	if err != nil {
+		logger.Warningf("Error sending wait sec selection message: %v", err)
+	}
+	return err
 }
 
 func SendMathVerificationMessage(bot *telego.Bot, userID int64, groupID int64, query *telego.CallbackQuery) error {

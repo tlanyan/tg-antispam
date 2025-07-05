@@ -27,6 +27,7 @@ var Translations = map[string]Translation{
 		"help_cmd_toggle_random_username": "/toggle_random_username - 切换默认禁止随机用户名用户",
 		"help_cmd_toggle_emoji_name":      "/toggle_emoji_name - 切换默认禁止姓名表情符号用户",
 		"help_cmd_toggle_bio_link":        "/toggle_bio_link - 切换默认禁止个人简介可疑链接用户",
+		"help_cmd_wait_sec":               "/wait_sec - 设置封禁等待时间",
 		"help_cmd_self_unban":             "/self_unban - 自助解封",
 		"help_note":                       "注意: 只有群组管理员才能更改设置。",
 
@@ -44,6 +45,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_ping":                   "ping机器人",
 
 		"user_not_admin":               "您不是群组管理员，无法使用该指令",
+		"bot_not_admin":                "机器人不是群组管理员，无法获取群组设置",
 		"empty_group_list":             "群组记录为空，请将机器人添加到您管理的群组中并设置为管理员",
 		"get_ban_records_error":        "获取封禁记录失败，请稍后再试",
 		"no_ban_records":               "您没有待解封的记录",
@@ -62,6 +64,7 @@ var Translations = map[string]Translation{
 		"settings_bio_link":        "- 个人简介可疑链接封禁: %s",
 		"settings_notifications":   "- 通知管理员: %s",
 		"settings_language":        "- 语言: %s",
+		"settings_wait_sec":        "- 封禁等待时间: %s 秒",
 
 		"enabled":  "✅ 启用",
 		"disabled": "❌ 禁用",
@@ -127,8 +130,12 @@ var Translations = map[string]Translation{
 		"toggle_bio_link":        "切换个人简介可疑链接封禁",
 		"toggle_notifications":   "切换管理员通知",
 		"change_language":        "更改语言",
+		"change_wait_sec":        "设置封禁等待时间",
 
-		"select_language": "请选择机器人使用的语言:",
+		"select_language":  "请选择机器人使用的语言:",
+		"select_wait_sec":  "请选择封禁等待时间:",
+		"wait_sec_updated": "封禁等待时间已更新为 %d 秒",
+		"seconds":          "秒",
 	},
 
 	LangTraditionalChinese: {
@@ -144,6 +151,7 @@ var Translations = map[string]Translation{
 		"help_cmd_toggle_emoji_name":      "/toggle_emoji_name - 切換默認禁止名字包含表情符號用户",
 		"help_cmd_toggle_bio_link":        "/toggle_bio_link - 切換默認禁止個人簡介包含可疑連結用户",
 		"help_cmd_toggle_notifications":   "/toggle_notifications - 切換發送管理員通知",
+		"help_cmd_wait_sec":               "/wait_sec - 設置封禁等待時間",
 		"help_cmd_self_unban":             "/self_unban - 自助解封",
 		"help_cmd_language":               "/language - 設置機器人語言",
 		"help_cmd_language_group":         "/language_group - 設置群組語言",
@@ -163,6 +171,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_ping":                   "Ping the bot",
 
 		"user_not_admin":               "您不是群組管理員，無法使用該指令",
+		"bot_not_admin":                "機器人不是群組管理員，無法獲取群組設置",
 		"empty_group_list":             "群組記錄為空，請將機器人添加到您管理的群組中並設置為管理員",
 		"get_ban_records_error":        "獲取封禁記錄失敗，請稍後再試",
 		"no_ban_records":               "您沒有待解封的記錄",
@@ -181,6 +190,7 @@ var Translations = map[string]Translation{
 		"settings_bio_link":        "- 個人簡介可疑連結封禁: %s",
 		"settings_notifications":   "- 管理員通知: %s",
 		"settings_language":        "- 語言: %s",
+		"settings_wait_sec":        "- 封禁等待時間: %s 秒",
 
 		"enabled":  "✅ 啟用",
 		"disabled": "❌ 禁用",
@@ -253,8 +263,12 @@ var Translations = map[string]Translation{
 		"toggle_bio_link":        "切換個人簡介可疑連結封禁",
 		"toggle_notifications":   "切換管理員通知",
 		"change_language":        "更改語言",
+		"change_wait_sec":        "設置封禁等待時間",
 
-		"select_language": "請選擇機器人使用的語言:",
+		"select_language":  "請選擇機器人使用的語言:",
+		"select_wait_sec":  "請選擇封禁等待時間:",
+		"wait_sec_updated": "封禁等待時間已更新為 %d 秒",
+		"seconds":          "秒",
 	},
 
 	LangEnglish: {
@@ -270,6 +284,7 @@ var Translations = map[string]Translation{
 		"help_cmd_toggle_emoji_name":      "/toggle_emoji_name - Toggle default banning of name containing emojis",
 		"help_cmd_toggle_bio_link":        "/toggle_bio_link - Toggle default banning of bio containing suspicious links",
 		"help_cmd_toggle_notifications":   "/toggle_notifications - Toggle admin notifications",
+		"help_cmd_wait_sec":               "/wait_sec - Set ban user wait time",
 		"help_cmd_language":               "/language - Set bot language",
 		"help_cmd_language_group":         "/language_group - Set group language",
 		"help_cmd_self_unban":             "/self_unban - Self-unban",
@@ -289,6 +304,7 @@ var Translations = map[string]Translation{
 		"cmd_desc_ping":                   "Ping the bot",
 
 		"user_not_admin":               "You are not an admin in this group, and cannot use this command",
+		"bot_not_admin":                "Bot is not an admin in this group, cannot retrieve group settings",
 		"empty_group_list":             "Group list is empty, please add the bot to your groups and set it as an administrator",
 		"get_ban_records_error":        "Failed to get ban records, please try again later",
 		"no_ban_records":               "You have no ban records",
@@ -307,6 +323,7 @@ var Translations = map[string]Translation{
 		"settings_bio_link":        "- Bio Link Check: %s",
 		"settings_notifications":   "- Admin Notifications: %s",
 		"settings_language":        "- Language: %s",
+		"settings_wait_sec":        "- Ban User Wait Time: %s seconds",
 
 		"settings_cmd_premium":         "/toggle_premium - Toggle Premium user ban",
 		"settings_cmd_cas":             "/toggle_cas - Toggle CAS verification",
@@ -388,8 +405,12 @@ var Translations = map[string]Translation{
 		"toggle_bio_link":        "Toggle bio suspicious link ban",
 		"toggle_notifications":   "Toggle admin notifications",
 		"change_language":        "Change language",
+		"change_wait_sec":        "Set ban user wait time",
 
-		"select_language": "Please select a language for the bot:",
+		"select_language":  "Please select a language for the bot:",
+		"select_wait_sec":  "Please select ban user wait time:",
+		"wait_sec_updated": "Ban user wait time updated to %d seconds",
+		"seconds":          "seconds",
 	},
 }
 

@@ -90,8 +90,8 @@ func setLocalizedCommands(ctx context.Context, bot *telego.Bot) {
 	// Map of language codes to Telegram language codes
 	langCodes := map[string]string{
 		models.LangEnglish:            "en",
-		models.LangSimplifiedChinese:  "zh",
-		models.LangTraditionalChinese: "zh_TW",
+		models.LangSimplifiedChinese:  "zh-hans",
+		models.LangTraditionalChinese: "zh-hant",
 	}
 
 	// Set commands for each supported language
