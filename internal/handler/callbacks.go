@@ -794,11 +794,44 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 			}
 		})
 
-		// Send success message
+		// Send success message to user
 		_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: message.Chat.ID},
 			Text:      models.GetTranslation(language, "math_verification_success"),
 			ParseMode: "HTML",
+		})
+
+		// Send notification to admin about successful self-unban
+		crash.SafeGoroutine(fmt.Sprintf("notify-admin-self-unban-%d-%d", userID, groupID), func() {
+			// Get user display name with HTML link
+			userLink := GetLinkedUserName(*message.From)
+
+			linkedGroupName := groupInfo.GetLinkedGroupName()
+			if linkedGroupName == "" {
+				logger.Infof("failed to get Group name, do not send self-unban notification")
+				return
+			}
+
+			// Construct notification message
+			notificationMessage := fmt.Sprintf(
+				models.GetTranslation(language, "self_unban_success_notification"),
+				linkedGroupName,
+				userLink,
+			)
+
+			// Send notification to admin if enabled and admin exists
+			if groupInfo.EnableNotification && groupInfo.AdminID > 0 {
+				_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID:    telego.ChatID{ID: groupInfo.AdminID},
+					Text:      notificationMessage,
+					ParseMode: "HTML",
+				})
+				if err != nil {
+					logger.Warningf("Error sending self-unban notification to admin: %v", err)
+				} else {
+					logger.Infof("Sent self-unban notification to admin %d for user %d in group %d", groupInfo.AdminID, userID, groupID)
+				}
+			}
 		})
 	} else {
 		// Handle failed attempt count and potentially resend verification
