@@ -830,12 +830,22 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 				userLink,
 			)
 
+			// Create re-ban button
+			banButton := telego.InlineKeyboardButton{
+				Text:         models.GetTranslation(language, "ban_user"),
+				CallbackData: fmt.Sprintf("ban:%d:%d", groupID, userID),
+			}
+			keyboard := [][]telego.InlineKeyboardButton{
+				{banButton},
+			}
+
 			// Send notification to admin if enabled and admin exists
 			if groupInfo.EnableNotification && groupInfo.AdminID > 0 {
 				_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-					ChatID:    telego.ChatID{ID: groupInfo.AdminID},
-					Text:      notificationMessage,
-					ParseMode: "HTML",
+					ChatID:      telego.ChatID{ID: groupInfo.AdminID},
+					Text:        notificationMessage,
+					ParseMode:   "HTML",
+					ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard},
 				})
 				if err != nil {
 					logger.Warningf("Error sending self-unban notification to admin: %v", err)
