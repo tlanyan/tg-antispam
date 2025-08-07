@@ -774,7 +774,7 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 	// Check if the answer is correct
 	if userAnswer == expectedAnswer.Answer {
 		// double check for premium user
-		if message.From.IsPremium && verificationAttempts[userID] >= 0 {
+		if (message.From.IsPremium || IsRandomUsername(message.From.Username) || HasEmoji(message.From.FirstName) || HasLinksInBio(bot, message.From.ID)) && verificationAttempts[userID] >= 0 {
 			verificationAttempts[userID] = -1
 			query := telego.CallbackQuery{
 				ID:      "",

@@ -137,6 +137,7 @@ var Translations = map[string]Translation{
 		"select_wait_sec":  "请选择封禁等待时间:",
 		"wait_sec_updated": "封禁等待时间已更新为 %d 秒",
 		"seconds":          "秒",
+		"unban_user":       "解除封禁",
 	},
 
 	LangTraditionalChinese: {
@@ -271,6 +272,7 @@ var Translations = map[string]Translation{
 		"select_wait_sec":  "請選擇封禁等待時間:",
 		"wait_sec_updated": "封禁等待時間已更新為 %d 秒",
 		"seconds":          "秒",
+		"unban_user":       "解除封禁",
 	},
 
 	LangEnglish: {
@@ -414,6 +416,7 @@ var Translations = map[string]Translation{
 		"select_wait_sec":  "Please select ban user wait time:",
 		"wait_sec_updated": "Ban user wait time updated to %d seconds",
 		"seconds":          "seconds",
+		"unban_user":       "Unban user",
 	},
 }
 
