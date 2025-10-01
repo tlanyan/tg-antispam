@@ -106,6 +106,26 @@ func UpdateGroupInfo(groupInfo *models.GroupInfo) {
 	}
 }
 
+// DeleteGroupInfo removes group information from both cache and database
+func DeleteGroupInfo(groupID int64) error {
+    // 1. Remove from memory cache
+    groupInfoManager.RemoveGroupInfo(groupID)
+    logger.Infof("Removed group info for groupID: %d from cache", groupID)
+
+    // 2. Remove from database (if repository is available)
+    if groupRepository != nil {
+        if err := groupRepository.DeleteGroupInfo(groupID); err != nil {
+            logger.Warningf("Error deleting group info from database for groupID %d: %v", groupID, err)
+            return err
+        }
+        logger.Infof("Deleted group info for groupID: %d from database", groupID)
+    } else {
+        logger.Warning("Database repository is not available, only removed from cache.")
+    }
+
+    return nil
+}
+
 func GetBotPromoterID(bot *telego.Bot, chatID int64) (int64, bool) {
 	// 创建带超时的context
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
