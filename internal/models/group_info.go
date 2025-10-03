@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"tg-antispam/internal/logger"
 )
 
 // GroupInfo represents group information and settings
@@ -60,4 +61,20 @@ func (g *GroupInfoManager) RemoveGroupInfo(groupID int64) {
 	g.GroupInfoMapMu.Lock()
 	defer g.GroupInfoMapMu.Unlock()
 	delete(g.GroupInfoMap, groupID)
+}
+
+// ResetUserCache clears only the in-memory cache entries where GroupID > 0 (representing users).
+func (g *GroupInfoManager) ResetUserCache() {
+    g.GroupInfoMapMu.Lock()
+    defer g.GroupInfoMapMu.Unlock()
+    
+    removedCount := 0
+    // Iterate through the map and delete entries with GroupID > 0
+    for groupID := range g.GroupInfoMap {
+        if groupID > 0 {
+            delete(g.GroupInfoMap, groupID)
+            removedCount++
+        }
+    }
+    logger.Infof("User entries (group_id > 0) removed from GroupInfo cache: %d", removedCount)
 }
