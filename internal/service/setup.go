@@ -1,6 +1,7 @@
 package service
 
 import (
+	"time"
 	"tg-antispam/internal/config"
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/models"
@@ -14,6 +15,26 @@ var (
 	pendingMsgRepository *storage.PendingMsgRepository
 	globalConfig         *config.Config
 )
+
+// startCacheCleanup initializes and runs the periodic user cache reset goroutine.
+func startCacheCleanup(manager *models.GroupInfoManager) {
+    if manager == nil {
+        logger.Warningf("GroupInfoManager is nil, cannot start user cache cleanup")
+        return
+    }
+    // Define the cleanup interval (e.g., every 24 hours)
+    ticker := time.NewTicker(24 * time.Hour)
+
+    // Start the goroutine
+    go func() {
+        logger.Infof("Starting GroupInfo user cache cleanup goroutine with interval: %v", 24*time.Hour)
+        for range ticker.C { // Receive ticks from the ticker
+            logger.Infof("Initiating GroupInfo user cache reset (group_id > 0)...")
+            manager.ResetUserCache() // Call the NEW reset function on the manager instance
+            logger.Infof("GroupInfo user cache reset completed (group_id > 0).")
+        }
+    }()
+}
 
 // Initialize initializes the service with configuration
 func Initialize(cfg *config.Config) {
@@ -42,4 +63,9 @@ func InitRepositories() {
 			logger.Warningf("Error migrating PendingMessageDeletion table: %v", err)
 		}
 	}
+}
+
+// StartCacheCleanup starts the periodic user cache reset goroutine.
+func StartCacheCleanup() {
+    startCacheCleanup(groupInfoManager)
 }

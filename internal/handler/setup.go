@@ -36,8 +36,6 @@ func Initialize(cfg *config.Config) {
 
 // SetupMessageHandlers configures all bot message and update handlers
 func SetupMessageHandlers(bh *th.BotHandler, bot *telego.Bot) {
-	service.InitRepositories()
-
 	// 启动状态监控
 	StartStatusMonitoring()
 

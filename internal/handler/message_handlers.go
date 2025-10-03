@@ -193,22 +193,6 @@ func handleChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 	}
 
 	groupInfo := service.GetGroupInfo(bot, chatId, true)
-	// Track admin who promoted the bot
-	if newChatMember.MemberUser().ID == botID {
-		// Check if the bot's status was changed to admin
-		if newChatMember.MemberStatus() == telego.MemberStatusAdministrator {
-			logger.Infof("Bot was promoted to admin in chat %d by user %d", chatId, fromUser.ID)
-			groupInfo.IsAdmin = true
-			groupInfo.AdminID = fromUser.ID
-			// Update the group info
-			service.UpdateGroupInfo(groupInfo)
-		} else {
-			groupInfo.IsAdmin = false
-			// Update the group info
-			service.UpdateGroupInfo(groupInfo)
-		}
-		return nil
-	}
 
 	if !groupInfo.IsAdmin {
 		logger.Infof("Bot not and admin for chat ID: %d", chatId)
@@ -321,43 +305,110 @@ func handleMyChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 
 	logger.Infof("MyChatMember update: %+v", update.MyChatMember)
 
-	// Only process private chat updates (when a user blocks/unblocks the bot)
-	if update.MyChatMember.Chat.Type == "private" {
-		userID := update.MyChatMember.From.ID
-		newStatus := update.MyChatMember.NewChatMember.MemberStatus()
+    botUser, err := bot.GetMe(context.Background())
+    if err != nil {
+        logger.Errorf("Failed to get bot info: %v", err)
+        return err
+    }
+    botID := botUser.ID
 
-		// When a user blocks/stops the bot (MemberStatusLeft for left, "kicked" for blocked/stopped)
-		if newStatus == telego.MemberStatusLeft || newStatus == "kicked" {
-			logger.Infof("User %d has blocked/stopped the bot", userID)
+    chatID := update.MyChatMember.Chat.ID
+    fromUser := update.MyChatMember.From
+    chatType := update.MyChatMember.Chat.Type
 
-			// Disable notifications for all groups associated with this admin
-			if storage.DB != nil {
-				// Create a temporary repository
-				groupRepository := storage.NewGroupRepository(storage.DB)
+	// Only process status changes related to the bot itself
+	if update.MyChatMember.NewChatMember.MemberUser().ID == botID {
+		// Only process private chat updates (when a user blocks/unblocks the bot)
+		if chatType == "private" {
+			userID := update.MyChatMember.From.ID
+			newStatus := update.MyChatMember.NewChatMember.MemberStatus()
 
-				groups, err := groupRepository.GetGroupsByAdminID(userID)
-				if err != nil {
-					logger.Warningf("Error getting groups for admin %d: %v", userID, err)
-					return nil
-				}
+			// When a user blocks/stops the bot (MemberStatusLeft for left, "kicked" for blocked/stopped)
+			if newStatus == telego.MemberStatusLeft || newStatus == "kicked" {
+				logger.Infof("User %d has blocked/stopped the bot", userID)
 
-				logger.Infof("Found %d groups for admin %d", len(groups), userID)
+				// Disable notifications for all groups associated with this admin
+				if storage.DB != nil {
+					// Create a temporary repository
+					groupRepository := storage.NewGroupRepository(storage.DB)
 
-				// Update each group's notification setting in both cache and DB
-				for _, group := range groups {
-					group.EnableNotification = false
-					service.UpdateGroupInfo(group)
+					groups, err := groupRepository.GetGroupsByAdminID(userID)
+					if err != nil {
+						logger.Warningf("Error getting groups for admin %d: %v", userID, err)
+						return nil
+					}
 
-					logger.Infof("Disabled notifications for group %d", group.GroupID)
-				}
+					logger.Infof("Found %d groups for admin %d", len(groups), userID)
 
-				// Update all groups in DB at once
-				err = groupRepository.DisableNotificationsForAdmin(userID)
-				if err != nil {
-					logger.Warningf("Error disabling notifications for admin %d: %v", userID, err)
+					// Update each group's notification setting in both cache and DB
+					for _, group := range groups {
+						group.EnableNotification = false
+						service.UpdateGroupInfo(group)
+
+						logger.Infof("Disabled notifications for group %d", group.GroupID)
+					}
+
+					// Update all groups in DB at once
+					err = groupRepository.DisableNotificationsForAdmin(userID)
+					if err != nil {
+						logger.Warningf("Error disabling notifications for admin %d: %v", userID, err)
+					}
 				}
 			}
-		}
-	}
+		}else if chatType == "group" || chatType == "supergroup" {
+			// 处理群组/超级群中的机器人状态更新
+			logger.Infof("Bot status change detected in %s %d (Title: %s). Old status: %s, New status: %s", chatType, chatID, update.MyChatMember.Chat.Title, update.MyChatMember.OldChatMember.MemberStatus(), update.MyChatMember.NewChatMember.MemberStatus())
+
+			// 获取或创建群组信息 (create=true 会从DB加载或创建新记录)
+			groupInfo := service.GetGroupInfo(bot, chatID, true)
+
+			if groupInfo == nil {
+				logger.Warningf("Failed to get or create group info for chat ID: %d", chatID)
+				return nil
+			}
+
+			// 检查新的状态是否为管理员
+			newStatus := update.MyChatMember.NewChatMember.MemberStatus() // 使用 MemberStatus()
+			isAdminNow := (newStatus == telego.MemberStatusAdministrator) // 使用 telego 常量
+
+			// 检查旧的状态是否为管理员
+			oldStatus := update.MyChatMember.OldChatMember.MemberStatus() // 使用 MemberStatus()
+			wasAdminBefore := (oldStatus == telego.MemberStatusAdministrator) // 使用 telego 常量
+			
+			// 检查新的状态是否为离开、踢出或封禁
+			if newStatus == "left" || newStatus == "kicked" || newStatus == "banned" {
+				logger.Infof("Bot was %s from %s %d (Title: %s). Attempting to clean up group info.", newStatus, chatType, chatID, update.MyChatMember.Chat.Title)
+				// 机器人离开了，删除其配置信息
+				if err := service.DeleteGroupInfo(chatID); err != nil {
+					logger.Errorf("Failed to delete group info for chat ID %d after bot %s: %v", chatID, newStatus, err)
+				} else {
+					logger.Infof("Successfully deleted group info for chat ID %d after bot %s.", chatID, newStatus)
+				}
+				// 处理完离开/踢出/封禁后，就可以返回了，不需要再检查 IsAdmin 状态
+				return nil
+			}
+			
+			// 如果不是离开/踢出/封禁，则继续检查 IsAdmin 状态变化
+			if isAdminNow {
+				logger.Infof("Bot is now an admin in %s %d. Updating group info (IsAdmin=true, AdminID=%d).", chatType, chatID, fromUser.ID)
+				groupInfo.IsAdmin = true
+				groupInfo.AdminID = fromUser.ID
+				service.UpdateGroupInfo(groupInfo)
+			} else if wasAdminBefore {
+				// 机器人之前是管理员，现在不再是（但不是离开/踢出/封禁）
+				logger.Infof("Bot is no longer an admin in %s %d (was %s, now %s). Updating group info (IsAdmin=false, AdminID=0).", chatType, chatID, oldStatus, newStatus)
+				groupInfo.IsAdmin = false
+				groupInfo.AdminID = 0
+				service.UpdateGroupInfo(groupInfo)
+			}
+
+		} else if chatType == "channel" {
+			logger.Debugf("Processing channel MyChatMember update for channel %d", chatID)
+			// TODO: Implement handling for channel MyChatMember updates
+			}
+    } else {
+        logger.Warningf("Received MyChatMember update for user %d, not the bot %d. This is unexpected.", update.MyChatMember.NewChatMember.MemberUser().ID, botID)
+    }
 	return nil
 }
+

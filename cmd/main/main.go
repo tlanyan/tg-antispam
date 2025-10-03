@@ -50,6 +50,9 @@ func main() {
 		logger.Info("Database support is disabled. Repositories will not be initialized.")
 	}
 
+	// Start the cache cleanup goroutine regardless of DB status
+    service.StartCacheCleanup()
+	
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
