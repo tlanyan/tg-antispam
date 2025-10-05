@@ -687,7 +687,12 @@ func SendMathVerificationMessage(bot *telego.Bot, userID int64, groupID int64, q
 		Answer  int
 		GroupID int64
 	}{correctAnswer, groupID}
-	verificationAttempts[userID] = 0
+	if _, exists := verificationAttempts[userID]; !exists {
+		verificationAttempts[userID] = 0
+	}
+	if verificationAttempts[userID] >= 0 {
+		verificationAttempts[userID] = 0
+	}
 
 	// Get group info for language
 	language := GetBotQueryLang(bot, query)
