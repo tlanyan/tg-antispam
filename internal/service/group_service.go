@@ -80,30 +80,59 @@ func GetGroupInfo(bot *telego.Bot, groupID int64, create bool) *models.GroupInfo
 		}
 
 		groupInfo.AdminID, groupInfo.IsAdmin = GetBotPromoterID(bot, groupID)
+		
+		// Only update the database if the GroupID represents a group (GroupID < 0)
+		if groupRepository != nil {
+			if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
+				logger.Warningf("Error saving group info to database for groupID %d: %v", groupID, err)
+			}
+		}
+		
+	} else {
+	    // For user records (GroupID > 0), only add to cache, do not save to DB.
+		logger.Debugf("Skipped saving user record (group_id > 0) to database during GetGroupInfo: %d", groupID)
 	}
 
 	logger.Infof("Group info created: %+v", groupInfo)
 
 	groupInfoManager.AddGroupInfo(groupInfo)
 
-	if groupRepository != nil {
-		if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
-			logger.Warningf("Error saving group info to database: %v", err)
-		}
-	}
-
 	return groupInfo
 }
 
 // UpdateGroupInfo updates group information in cache and database
+// For records representing users (GroupID > 0), it only updates the cache, not the database.
 func UpdateGroupInfo(groupInfo *models.GroupInfo) {
 	groupInfoManager.AddGroupInfo(groupInfo)
 
-	if groupRepository != nil {
-		if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
-			logger.Warningf("Error updating group info in database: %v", err)
-		}
-	}
+    if groupRepository != nil && groupInfo.GroupID < 0 {
+        if err := groupRepository.CreateOrUpdateGroupInfo(groupInfo); err != nil {
+            logger.Warningf("Error updating group info in database for groupID %d: %v", groupInfo.GroupID, err)
+        }
+    } else if groupRepository != nil && groupInfo.GroupID > 0 {
+        logger.Debugf("Skipped updating database for user record (group_id > 0): %d", groupInfo.GroupID)
+    }
+}
+
+// DeleteGroupInfo removes group information from both cache and database
+func DeleteGroupInfo(groupID int64) error {
+    // 1. Remove from memory cache
+    groupInfoManager.RemoveGroupInfo(groupID)
+    logger.Infof("Removed group info for groupID: %d from cache", groupID)
+
+    // 2. Remove from database (if repository is available)
+    if groupRepository != nil {
+        if err := groupRepository.DeleteGroupInfo(groupID); err != nil {
+            logger.Warningf("Error deleting group info from database for groupID %d: %v", groupID, err)
+            // 如果数据库删除失败，可以选择是否回滚缓存删除（这里不回滚）
+            return err
+        }
+        logger.Infof("Deleted group info for groupID: %d from database", groupID)
+    } else {
+        logger.Warning("Database repository is not available, only removed from cache.")
+    }
+
+    return nil
 }
 
 func GetBotPromoterID(bot *telego.Bot, chatID int64) (int64, bool) {
