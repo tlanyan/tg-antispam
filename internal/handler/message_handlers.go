@@ -131,6 +131,16 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 		text = message.Quote.Text
 	}
 
+	// Check if the user is pending
+	if _, ok := pendingUsers[message.From.ID]; ok {
+		logger.Infof("User %d is pending, delete message: %s", message.From.ID, text)
+		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+			ChatID:    telego.ChatID{ID: message.Chat.ID},
+			MessageID: message.MessageID,
+		})
+		return nil
+	}
+
 	if text != "" {
 		logger.Infof("suspicious message: %s, request cas or ai check", text)
 		shouldRestrict, reason = CasRequest(message.From.ID)
@@ -281,12 +291,12 @@ func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string
 	}
 
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
-	delete(pendingUsers, user.ID)
 	service.CreateBanRecord(chatId, user.ID, reason)
 	userCopy := user     // 创建副本避免闭包问题
 	reasonCopy := reason // 创建副本避免闭包问题
 	crash.SafeGoroutine(fmt.Sprintf("restrict-user-%d-%d", chatId, userCopy.ID), func() {
 		RestrictUser(bot, chatId, userCopy.ID)
+		delete(pendingUsers, user.ID)
 		// Send warning only if notifications are enabled
 		groupInfo := service.GetGroupInfo(bot, chatId, false)
 		if groupInfo.EnableNotification {
