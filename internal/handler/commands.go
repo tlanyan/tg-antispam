@@ -14,7 +14,7 @@ import (
 )
 
 // registers all bot command handlers
-func RegisterCommands(bot *telego.Bot, message telego.Message) (bool, error) {
+func HandleCommand(bot *telego.Bot, message telego.Message) (bool, error) {
 	// Skip non-command messages
 	if !strings.HasPrefix(message.Text, "/") {
 		return false, nil

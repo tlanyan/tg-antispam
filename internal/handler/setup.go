@@ -103,7 +103,7 @@ func processMessageAsync(bot *telego.Bot, message telego.Message, msgType string
 			}()
 
 			// 处理命令
-			ok, cmdErr := RegisterCommands(bot, message)
+			ok, cmdErr := HandleCommand(bot, message)
 			if ok {
 				err = cmdErr
 				if err != nil {

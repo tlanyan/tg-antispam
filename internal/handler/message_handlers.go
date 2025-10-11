@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,20 +43,6 @@ func handleIncomingMessage(bot *telego.Bot, message telego.Message) error {
 	// Check for math verification answers first
 	if message.Chat.Type == "private" {
 		return handlePrivateMessage(bot, message)
-	}
-
-	if message.Chat.ID > 0 {
-		// 获取并打印调用堆栈
-		stackTrace := string(debug.Stack())
-		logger.Infof("private chat message call stack: %s", stackTrace)
-
-		// Prompt user to send /help command
-		_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			Text:      "请发送 /help 获取使用帮助。\nPlease send /help to get help.",
-			ParseMode: "HTML",
-		})
-		return err
 	}
 
 	return handleGroupMessage(bot, message)
@@ -105,7 +90,6 @@ func handlePrivateMessage(bot *telego.Bot, message telego.Message) error {
 }
 
 func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
-	cfg := config.Get()
 	groupInfo := service.GetGroupInfo(bot, message.Chat.ID, true)
 	if !groupInfo.IsAdmin {
 		return nil
@@ -114,12 +98,9 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 
 	// handle bot commands
 	if strings.HasPrefix(message.Text, "/") && strings.Contains(message.Text, "@"+bot.Username()) {
-		RegisterCommands(bot, message)
+		HandleCommand(bot, message)
 		return nil
 	}
-
-	shouldRestrict := false
-	reason := ""
 
 	text := ""
 	// @TODO: more rules
@@ -127,8 +108,10 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 		text = message.Text
 	} else if message.ForwardOrigin != nil {
 		text = message.Caption
+		time.Sleep(3 * time.Second)
 	} else if message.Quote != nil {
 		text = message.Quote.Text
+		time.Sleep(3 * time.Second)
 	}
 
 	// Check if the user is pending
@@ -141,32 +124,36 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 		return nil
 	}
 
-	if text != "" {
-		logger.Infof("suspicious message: %s, request cas or ai check", text)
-		shouldRestrict, reason = CasRequest(message.From.ID)
+	//// CAS and AI check does't work well, so we disable it for now
+	// shouldRestrict := false
+	// reason := ""
+	// cfg := config.Get()
+	// if text != "" {
+	// 	logger.Infof("suspicious message: %s, request cas or ai check", text)
+	// 	shouldRestrict, reason = CasRequest(message.From.ID)
 
-		if !shouldRestrict && groupInfo.EnableAicheck {
-			if cfg.AiApi.GeminiApiKey != "" {
-				isSpam, err := ClassifyWithGemini(cfg.AiApi.GeminiApiKey, cfg.AiApi.GeminiModel, text)
-				if err != nil {
-					logger.Warningf("Error classifying message with Gemini: %v", err)
-				} else if isSpam {
-					shouldRestrict = true
-					reason = "reason_ai_spam"
-				}
-				logger.Infof("AI check message: %s, result: %t", text, isSpam)
-			}
-		}
-	}
+	// 	if !shouldRestrict && groupInfo.EnableAicheck {
+	// 		if cfg.AiApi.GeminiApiKey != "" {
+	// 			isSpam, err := ClassifyWithGemini(cfg.AiApi.GeminiApiKey, cfg.AiApi.GeminiModel, text)
+	// 			if err != nil {
+	// 				logger.Warningf("Error classifying message with Gemini: %v", err)
+	// 			} else if isSpam {
+	// 				shouldRestrict = true
+	// 				reason = "reason_ai_spam"
+	// 			}
+	// 			logger.Infof("AI check message: %s, result: %t", text, isSpam)
+	// 		}
+	// 	}
+	// }
 
-	if shouldRestrict {
-		logger.Infof("suspicious message text: %s, delete and restrict user: %d", text, message.From.ID)
-		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			MessageID: message.MessageID,
-		})
-		restrictUser(bot, message.Chat.ID, *message.From, reason)
-	}
+	// if shouldRestrict {
+	// 	logger.Infof("suspicious message text: %s, delete and restrict user: %d", text, message.From.ID)
+	// 	bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+	// 		ChatID:    telego.ChatID{ID: message.Chat.ID},
+	// 		MessageID: message.MessageID,
+	// 	})
+	// 	restrictUser(bot, message.Chat.ID, *message.From, reason)
+	// }
 
 	return nil
 }
@@ -315,16 +302,16 @@ func handleMyChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 
 	logger.Infof("MyChatMember update: %+v", update.MyChatMember)
 
-    botUser, err := bot.GetMe(context.Background())
-    if err != nil {
-        logger.Errorf("Failed to get bot info: %v", err)
-        return err
-    }
-    botID := botUser.ID
+	botUser, err := bot.GetMe(context.Background())
+	if err != nil {
+		logger.Errorf("Failed to get bot info: %v", err)
+		return err
+	}
+	botID := botUser.ID
 
-    chatID := update.MyChatMember.Chat.ID
-    fromUser := update.MyChatMember.From
-    chatType := update.MyChatMember.Chat.Type
+	chatID := update.MyChatMember.Chat.ID
+	fromUser := update.MyChatMember.From
+	chatType := update.MyChatMember.Chat.Type
 
 	// Only process status changes related to the bot itself
 	if update.MyChatMember.NewChatMember.MemberUser().ID == botID {
@@ -365,7 +352,7 @@ func handleMyChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 					}
 				}
 			}
-		}else if chatType == "group" || chatType == "supergroup" {
+		} else if chatType == "group" || chatType == "supergroup" {
 			// 处理群组/超级群中的机器人状态更新
 			logger.Infof("Bot status change detected in %s %d (Title: %s). Old status: %s, New status: %s", chatType, chatID, update.MyChatMember.Chat.Title, update.MyChatMember.OldChatMember.MemberStatus(), update.MyChatMember.NewChatMember.MemberStatus())
 
@@ -382,9 +369,9 @@ func handleMyChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 			isAdminNow := (newStatus == telego.MemberStatusAdministrator) // 使用 telego 常量
 
 			// 检查旧的状态是否为管理员
-			oldStatus := update.MyChatMember.OldChatMember.MemberStatus() // 使用 MemberStatus()
+			oldStatus := update.MyChatMember.OldChatMember.MemberStatus()     // 使用 MemberStatus()
 			wasAdminBefore := (oldStatus == telego.MemberStatusAdministrator) // 使用 telego 常量
-			
+
 			// 检查新的状态是否为离开、踢出或封禁
 			if newStatus == "left" || newStatus == "kicked" || newStatus == "banned" {
 				logger.Infof("Bot was %s from %s %d (Title: %s). Attempting to clean up group info.", newStatus, chatType, chatID, update.MyChatMember.Chat.Title)
@@ -397,7 +384,7 @@ func handleMyChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 				// 处理完离开/踢出/封禁后，就可以返回了，不需要再检查 IsAdmin 状态
 				return nil
 			}
-			
+
 			// 如果不是离开/踢出/封禁，则继续检查 IsAdmin 状态变化
 			if isAdminNow {
 				logger.Infof("Bot is now an admin in %s %d. Updating group info (IsAdmin=true, AdminID=%d).", chatType, chatID, fromUser.ID)
@@ -415,10 +402,9 @@ func handleMyChatMemberUpdate(bot *telego.Bot, update telego.Update) error {
 		} else if chatType == "channel" {
 			logger.Debugf("Processing channel MyChatMember update for channel %d", chatID)
 			// TODO: Implement handling for channel MyChatMember updates
-			}
-    } else {
-        logger.Warningf("Received MyChatMember update for user %d, not the bot %d. This is unexpected.", update.MyChatMember.NewChatMember.MemberUser().ID, botID)
-    }
+		}
+	} else {
+		logger.Warningf("Received MyChatMember update for user %d, not the bot %d. This is unexpected.", update.MyChatMember.NewChatMember.MemberUser().ID, botID)
+	}
 	return nil
 }
-
