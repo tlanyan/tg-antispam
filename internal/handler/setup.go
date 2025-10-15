@@ -32,6 +32,8 @@ func Initialize(cfg *config.Config) {
 		maxConcurrentMessages = 100 // 默认最大并发数
 	}
 	messageProcessingSemaphore = make(chan struct{}, maxConcurrentMessages)
+
+	ClearRecentUsers()
 }
 
 // SetupMessageHandlers configures all bot message and update handlers

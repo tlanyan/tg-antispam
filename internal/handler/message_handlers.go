@@ -25,7 +25,26 @@ var unbannParamRegex = regexp.MustCompile(`^unban_(-?\d+)_(\d+)$`)
 // pendingUsers user and group id to pending security check
 var pendingUsers = make(map[int64]int64)
 
+// recentUsers recent users
+var recentUsers = make(map[string]time.Time)
+
 var restrictMutex sync.Mutex
+
+func ClearRecentUsers() {
+	ticker := time.NewTicker(30 * time.Second)
+
+	// Start the goroutine
+	go func() {
+		for range ticker.C { // Receive ticks from the ticker
+			now := time.Now()
+			for key, joinTime := range recentUsers {
+				if now.After(joinTime.Add(10 * time.Second)) {
+					delete(recentUsers, key)
+				}
+			}
+		}
+	}()
+}
 
 // handleIncomingMessage processes new messages in chats
 func handleIncomingMessage(bot *telego.Bot, message telego.Message) error {
@@ -124,6 +143,18 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 		return nil
 	}
 
+	key := fmt.Sprintf("%d-%d", message.From.ID, message.Chat.ID)
+	if recentUser, ok := recentUsers[key]; ok {
+		if time.Since(recentUser) < 10*time.Second {
+			logger.Infof("User %d join group less than 10 seconds, delete message: %s", message.From.ID, text)
+			bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+				ChatID:    telego.ChatID{ID: message.Chat.ID},
+				MessageID: message.MessageID,
+			})
+			return nil
+		}
+	}
+
 	//// CAS and AI check does't work well, so we disable it for now
 	// shouldRestrict := false
 	// reason := ""
@@ -212,6 +243,9 @@ func checkRestrictedUser(bot *telego.Bot, chatId int64, newChatMember telego.Cha
 			logger.Infof("Skipping bot update: %s", user.FirstName)
 			return nil
 		}
+
+		key := fmt.Sprintf("%d-%d", user.ID, chatId)
+		recentUsers[key] = time.Now()
 
 		// 首次入群，等待入群机器人处理，如果没有入群机器人则封禁
 		if !fromUser.IsBot && newChatMember.MemberStatus() == telego.MemberStatusMember {
