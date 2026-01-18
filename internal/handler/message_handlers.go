@@ -314,16 +314,16 @@ func restrictUser(bot *telego.Bot, chatId int64, user telego.User, reason string
 	logger.Infof("Restricting user: %s, reason: %s", user.FirstName, reason)
 	service.CreateBanRecord(chatId, user.ID, reason)
 	userCopy := user     // 创建副本避免闭包问题
-	reasonCopy := reason // 创建副本避免闭包问题
+	// reasonCopy := reason // 创建副本避免闭包问题
 	crash.SafeGoroutine(fmt.Sprintf("restrict-user-%d-%d", chatId, userCopy.ID), func() {
 		RestrictUser(bot, chatId, userCopy.ID)
 		delete(pendingUsers, user.ID)
-		// Send warning only if notifications are enabled
-		groupInfo := service.GetGroupInfo(bot, chatId, false)
-		if groupInfo.EnableNotification {
-			NotifyAdmin(bot, groupInfo.GroupID, userCopy, reasonCopy)
-		}
-		NotifyUserInGroup(bot, groupInfo.GroupID, userCopy)
+		// // Send warning only if notifications are enabled
+		// groupInfo := service.GetGroupInfo(bot, chatId, false)
+		// if groupInfo.EnableNotification {
+		// 	NotifyAdmin(bot, groupInfo.GroupID, userCopy, reasonCopy)
+		// }
+		// NotifyUserInGroup(bot, groupInfo.GroupID, userCopy)
 	})
 }
 
