@@ -219,6 +219,27 @@ func GetLinkedUserName(user telego.User) string {
 	return fmt.Sprintf("<a href=\"tg://user?id=%d\">%s</a>", user.ID, displayName)
 }
 
+// DeleteMessageWithRetry attempts to delete a message, with one retry after 10 seconds if the first attempt fails
+func DeleteMessageWithRetry(bot *telego.Bot, chatID int64, messageID int) {
+	err := bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+		ChatID:    telego.ChatID{ID: chatID},
+		MessageID: messageID,
+	})
+
+	if err != nil {
+		logger.Warningf("Failed to delete message %d in chat %d: %v, will retry in 10s", messageID, chatID, err)
+
+		// Wait 10 seconds before retry
+		time.Sleep(10 * time.Second)
+
+		// Retry once
+		err = bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
+			ChatID:    telego.ChatID{ID: chatID},
+			MessageID: messageID,
+		})
+	}
+}
+
 func NotifyAdmin(bot *telego.Bot, groupID int64, user telego.User, reason string) {
 	groupInfo := service.GetGroupInfo(bot, groupID, false)
 	if groupInfo == nil {
@@ -336,10 +357,7 @@ func NotifyUserInGroup(bot *telego.Bot, groupID int64, user telego.User) {
 
 	crash.SafeGoroutine(fmt.Sprintf("warning-message-cleanup-%d-%d", groupInfo.GroupID, msg.MessageID), func() {
 		time.Sleep(3 * time.Minute)
-		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-			ChatID:    telego.ChatID{ID: groupInfo.GroupID},
-			MessageID: msg.MessageID,
-		})
+		DeleteMessageWithRetry(bot, groupInfo.GroupID, msg.MessageID)
 
 		if globalConfig != nil && globalConfig.Database.Enabled {
 			service.RemovePendingMsg(groupInfo.GroupID, msg.MessageID)

@@ -801,10 +801,7 @@ func HandleMathVerification(bot *telego.Bot, message telego.Message) error {
 				logger.Warningf("Error getting pending messages: %v", err)
 			} else {
 				for _, msg := range msgs {
-					bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-						ChatID:    telego.ChatID{ID: msg.ChatID},
-						MessageID: int(msg.MessageID),
-					})
+					DeleteMessageWithRetry(bot, msg.ChatID, int(msg.MessageID))
 					service.RemovePendingMsg(msg.ChatID, msg.MessageID)
 				}
 			}

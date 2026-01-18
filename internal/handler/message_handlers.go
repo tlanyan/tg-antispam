@@ -136,10 +136,7 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 	// Check if the user is pending
 	if _, ok := pendingUsers[message.From.ID]; ok {
 		logger.Infof("User %d is pending, delete message: %s", message.From.ID, text)
-		bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-			ChatID:    telego.ChatID{ID: message.Chat.ID},
-			MessageID: message.MessageID,
-		})
+		DeleteMessageWithRetry(bot, message.Chat.ID, message.MessageID)
 		return nil
 	}
 
@@ -147,10 +144,7 @@ func handleGroupMessage(bot *telego.Bot, message telego.Message) error {
 	if recentUser, ok := recentUsers[key]; ok {
 		if time.Since(recentUser) < 10*time.Second {
 			logger.Infof("User %d join group less than 10 seconds, delete message: %s", message.From.ID, text)
-			bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-				ChatID:    telego.ChatID{ID: message.Chat.ID},
-				MessageID: message.MessageID,
-			})
+			DeleteMessageWithRetry(bot, message.Chat.ID, message.MessageID)
 			return nil
 		}
 	}

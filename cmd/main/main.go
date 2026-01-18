@@ -17,8 +17,6 @@ import (
 	"tg-antispam/internal/logger"
 	"tg-antispam/internal/service"
 	"tg-antispam/internal/storage"
-
-	"github.com/mymmrac/telego"
 )
 
 func main() {
@@ -52,7 +50,7 @@ func main() {
 
 	// Start the cache cleanup goroutine regardless of DB status
     service.StartCacheCleanup()
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -137,10 +135,7 @@ func handlePendingDeletions(botService *bot.BotService, cfg *config.Config) {
 					logger.Infof("Rescheduling deletion for message %d in chat %d in %v", msgCopy.MessageID, msgCopy.ChatID, durationUntilDelete)
 					time.Sleep(durationUntilDelete)
 
-					botService.Bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-						ChatID:    telego.ChatID{ID: msgCopy.ChatID},
-						MessageID: msgCopy.MessageID,
-					})
+					handler.DeleteMessageWithRetry(botService.Bot, msgCopy.ChatID, msgCopy.MessageID)
 
 					// Remove from DB after attempting deletion
 					if err = service.RemovePendingMsg(msgCopy.ChatID, msgCopy.MessageID); err != nil {
